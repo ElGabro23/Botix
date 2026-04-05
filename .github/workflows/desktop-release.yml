@@ -26,9 +26,11 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        working-directory: apps/desktop
 
       - name: Build desktop installer
-        run: npm run dist:desktop
+        run: npm run dist:win
+        working-directory: apps/desktop
         env:
           VITE_FIREBASE_API_KEY: AIzaSyBIy_RMEiIyYLZWYiuo1UdQLiTLn4smHx8
           VITE_FIREBASE_AUTH_DOMAIN: botix-e493b.firebaseapp.com

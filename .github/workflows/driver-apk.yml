@@ -35,6 +35,7 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        working-directory: apps/driver
 
       - name: Prebuild Android
         run: npx expo prebuild --platform android --non-interactive

@@ -13,8 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
   },
   "dependencies": {
-    "@botix/firebase-core": "0.1.0",
-    "@botix/shared": "0.1.0",
+    "@botix/firebase-core": "file:../../packages/firebase-core",
+    "@botix/shared": "file:../../packages/shared",
     "firebase": "^11.6.1",
     "lucide-react": "^0.503.0",
     "react": "^18.3.1",

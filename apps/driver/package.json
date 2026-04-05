@@ -12,8 +12,8 @@
     "export": "expo export --platform android"
   },
   "dependencies": {
-    "@botix/firebase-core": "0.1.0",
-    "@botix/shared": "0.1.0",
+    "@botix/firebase-core": "file:../../packages/firebase-core",
+    "@botix/shared": "file:../../packages/shared",
     "expo": "~54.0.0",
     "expo-linking": "~7.0.5",
     "expo-location": "~18.1.0",

@@ -9,8 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@botix/firebase-core": "0.1.0",
-    "@botix/shared": "0.1.0",
+    "@botix/firebase-core": "file:../../packages/firebase-core",
+    "@botix/shared": "file:../../packages/shared",
     "firebase": "^11.6.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
