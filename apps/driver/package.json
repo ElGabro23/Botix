@@ -15,7 +15,7 @@
     "@botix/firebase-core": "file:../../packages/firebase-core",
     "@botix/shared": "file:../../packages/shared",
     "expo": "~54.0.0",
-    "expo-build-properties": "~0.15.7",
+    "expo-build-properties": "~0.14.8",
     "expo-linking": "~7.0.5",
     "expo-location": "~18.1.0",
     "firebase": "^11.6.1",
