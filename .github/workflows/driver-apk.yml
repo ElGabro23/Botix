@@ -48,12 +48,12 @@ jobs:
           EXPO_PUBLIC_FIREBASE_APP_ID: 1:213505703707:web:798a040c888c6b58e95dbe
           EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID: G-RXFY7ZGHVY
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
         working-directory: apps/driver/android
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: botix-driver-apk
-          path: apps/driver/android/app/build/outputs/apk/release/*.apk
+          path: apps/driver/android/app/build/outputs/apk/debug/*.apk
