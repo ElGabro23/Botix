@@ -49,6 +49,10 @@ jobs:
           EXPO_PUBLIC_FIREBASE_APP_ID: 1:213505703707:web:798a040c888c6b58e95dbe
           EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID: G-RXFY7ZGHVY
 
+      - name: Patch Gradle config
+        run: sed -i '/enableBundleCompression/d' android/app/build.gradle
+        working-directory: apps/driver
+
       - name: Build debug APK
         run: ./gradlew assembleDebug
         working-directory: apps/driver/android
