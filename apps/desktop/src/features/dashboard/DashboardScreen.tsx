@@ -21,6 +21,7 @@ import {
   subscribeOrders,
   updateOrderStatus
 } from "@/lib/botixApi";
+import { assetUrl } from "@/lib/assetUrl";
 
 const initialDraft = {
   customerName: "",
@@ -96,7 +97,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     <div className="desktop-shell">
       <header className="topbar">
         <div className="brand-wrap">
-          <img src="/brand/botix.jpg" alt="Botix" />
+          <img src={assetUrl("brand/botix.jpg")} alt="Botix" />
           <div>
             <h1>BOTIX</h1>
             <span>Sistema para Botillerias</span>

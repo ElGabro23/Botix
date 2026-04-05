@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { assetUrl } from "@/lib/assetUrl";
 
 type Props = {
   onSubmit: (email: string, password: string) => Promise<unknown>;
@@ -28,7 +29,7 @@ export const LoginScreen = ({ onSubmit }: Props) => {
     <div className="login-shell">
       <div className="login-card">
         <div className="login-brand">
-          <img src="/brand/botix.jpg" alt="Botix" />
+          <img src={assetUrl("brand/botix.jpg")} alt="Botix" />
           <div>
             <h1>BOTIX</h1>
             <p>Sistema para botillerias con delivery en tiempo real</p>

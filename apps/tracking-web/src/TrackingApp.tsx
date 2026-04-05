@@ -3,6 +3,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import type { TrackingSession } from "@botix/shared";
 import { formatCompactDateTime, orderStatusLabel } from "@botix/shared";
 import { createFirebaseClient } from "@botix/firebase-core";
+import { assetUrl } from "./lib/assetUrl";
 
 const firebaseClient = createFirebaseClient({
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -30,7 +31,7 @@ export const TrackingApp = () => {
     <main className="tracking-shell">
       <section className="tracking-card">
         <div className="brand">
-          <img src="/brand/botix.jpg" alt="Botix" />
+          <img src={assetUrl("brand/botix.jpg")} alt="Botix" />
           <div>
             <strong>BOTIX Tracking</strong>
             <span>Seguimiento en tiempo real</span>
@@ -78,4 +79,3 @@ export const TrackingApp = () => {
     </main>
   );
 };
-
