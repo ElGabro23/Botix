@@ -1,0 +1,11 @@
+{
+  "name": "@botix/firebase-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "firebase": "^11.6.1"
+  }
+}
+

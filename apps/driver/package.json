@@ -1,0 +1,28 @@
+{
+  "name": "@botix/driver",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo/AppEntry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "apk": "eas build --platform android --profile preview",
+    "aab": "eas build --platform android --profile production",
+    "typecheck": "tsc --noEmit",
+    "export": "expo export --platform android"
+  },
+  "dependencies": {
+    "@botix/firebase-core": "0.1.0",
+    "@botix/shared": "0.1.0",
+    "expo": "~54.0.0",
+    "expo-linking": "~7.0.5",
+    "expo-location": "~18.1.0",
+    "firebase": "^11.6.1",
+    "react": "18.3.1",
+    "react-native": "0.76.9"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "typescript": "^5.8.3"
+  }
+}

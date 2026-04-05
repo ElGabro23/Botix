@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return userDoc().data.role;
+    }
+
+    function sameBusiness(businessId) {
+      return isSignedIn() && userDoc().data.businessId == businessId;
+    }
+
+    function isBackoffice(businessId) {
+      return sameBusiness(businessId) && userRole() in ['admin', 'cashier'];
+    }
+
+    function isCourierOfOrder(resourceData) {
+      return isSignedIn()
+        && sameBusiness(resourceData.businessId)
+        && userRole() == 'courier'
+        && resourceData.assignedCourierId == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read, create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.businessId == resource.data.businessId;
+      allow delete: if false;
+    }
+
+    match /businesses/{businessId} {
+      allow read: if sameBusiness(businessId);
+      allow write: if isBackoffice(businessId);
+
+      match /settings/{settingId} {
+        allow read: if sameBusiness(businessId);
+        allow write: if isBackoffice(businessId);
+      }
+
+      match /customers/{customerId} {
+        allow read: if sameBusiness(businessId);
+        allow create, update: if isBackoffice(businessId);
+        allow delete: if sameBusiness(businessId) && userRole() == 'admin';
+      }
+
+      match /couriers/{courierId} {
+        allow read: if sameBusiness(businessId);
+        allow create: if isBackoffice(businessId);
+        allow update: if isBackoffice(businessId)
+          || (
+            sameBusiness(businessId)
+            && userRole() == 'courier'
+            && courierId == request.auth.uid
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(['lastSeenAt', 'status'])
+          );
+        allow delete: if false;
+      }
+
+      match /deliveryOrders/{orderId} {
+        allow read: if isBackoffice(businessId) || isCourierOfOrder(resource.data);
+        allow create: if isBackoffice(businessId)
+          && request.resource.data.businessId == businessId;
+        allow update: if isBackoffice(businessId)
+          || (
+            isCourierOfOrder(resource.data)
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.customerId == resource.data.customerId
+            && request.resource.data.customerName == resource.data.customerName
+            && request.resource.data.customerPhone == resource.data.customerPhone
+            && request.resource.data.address == resource.data.address
+            && request.resource.data.items == resource.data.items
+            && request.resource.data.subtotal == resource.data.subtotal
+            && request.resource.data.deliveryFee == resource.data.deliveryFee
+            && request.resource.data.total == resource.data.total
+            && request.resource.data.paymentMethod == resource.data.paymentMethod
+            && request.resource.data.assignedCourierId == resource.data.assignedCourierId
+            && request.resource.data.assignedCourierName == resource.data.assignedCourierName
+            && request.resource.data.createdBy == resource.data.createdBy
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.status in ['assigned', 'en_route', 'delivered', 'incident']
+          );
+        allow delete: if false;
+      }
+
+      match /liveTracking/{orderId} {
+        allow read: if isBackoffice(businessId)
+          || (
+            isSignedIn()
+            && exists(/databases/$(database)/documents/businesses/$(businessId)/deliveryOrders/$(orderId))
+            && get(/databases/$(database)/documents/businesses/$(businessId)/deliveryOrders/$(orderId)).data.assignedCourierId == request.auth.uid
+          );
+        allow create, update: if isSignedIn()
+          && sameBusiness(businessId)
+          && userRole() == 'courier'
+          && request.resource.data.courierId == request.auth.uid
+          && request.resource.data.businessId == businessId;
+        allow delete: if false;
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if isBackoffice(businessId)
+          || (sameBusiness(businessId) && resource.data.userId == request.auth.uid);
+        allow create: if isBackoffice(businessId);
+        allow update: if sameBusiness(businessId) && resource.data.userId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+
+    match /trackingSessions/{token} {
+      allow get: if resource.data.active == true;
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+  }
+}
+

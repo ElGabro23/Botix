@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "botix-e493b"
+  },
+  "targets": {
+    "botix-e493b": {
+      "hosting": {
+        "tracking": [
+          "botix-e493b"
+        ]
+      }
+    }
+  }
+}

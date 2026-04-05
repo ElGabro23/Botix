@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+.expo
+.turbo
+.firebase
+firebase-debug.log
+*.local
+.env
+coverage
+android
+ios
+

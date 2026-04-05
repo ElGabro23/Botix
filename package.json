@@ -1,0 +1,29 @@
+{
+  "name": "botix-platform",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "functions"
+  ],
+  "scripts": {
+    "dev:desktop": "npm run dev -w apps/desktop",
+    "dev:driver": "npm run start -w apps/driver",
+    "dev:tracking": "npm run dev -w apps/tracking-web",
+    "build:desktop": "npm run build -w apps/desktop",
+    "build:driver": "npm run export -w apps/driver",
+    "build:tracking": "npm run build -w apps/tracking-web",
+    "dist:desktop": "npm run dist:win -w apps/desktop",
+    "dist:driver:apk": "npm run apk -w apps/driver",
+    "dist:driver:aab": "npm run aab -w apps/driver",
+    "build:functions": "npm run build -w functions",
+    "seed:firestore": "node scripts/seed-firestore.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  }
+}

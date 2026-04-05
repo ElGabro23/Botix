@@ -1,0 +1,46 @@
+name: Build Desktop Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "apps/desktop/**"
+      - "packages/**"
+      - "package.json"
+      - "tsconfig.base.json"
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build desktop installer
+        run: npm run dist:desktop
+        env:
+          VITE_FIREBASE_API_KEY: AIzaSyBIy_RMEiIyYLZWYiuo1UdQLiTLn4smHx8
+          VITE_FIREBASE_AUTH_DOMAIN: botix-e493b.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: botix-e493b
+          VITE_FIREBASE_STORAGE_BUCKET: botix-e493b.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: 213505703707
+          VITE_FIREBASE_APP_ID: 1:213505703707:web:798a040c888c6b58e95dbe
+          VITE_FIREBASE_MEASUREMENT_ID: G-RXFY7ZGHVY
+          VITE_TRACKING_BASE_URL: http://localhost:5174
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: botix-desktop-installer
+          path: apps/desktop/release/*.exe
