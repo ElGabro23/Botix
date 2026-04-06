@@ -227,8 +227,11 @@ export const startLocationTracking = async (businessId: string, orderId: string,
   );
 };
 
-export const stopLocationTracking = async (businessId: string, orderId: string) => {
+export const stopLocationTracking = async (businessId: string, orderId: string, courierId: string) => {
   await setDoc(doc(firebaseClient.db, liveTrackingPath(businessId), orderId), {
+    orderId,
+    businessId,
+    courierId,
     active: false,
     updatedAt: new Date().toISOString()
   }, { merge: true });

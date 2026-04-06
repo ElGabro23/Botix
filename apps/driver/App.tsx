@@ -22,6 +22,7 @@ export default function App() {
   const [email, setEmail] = useState("driver@botix.cl");
   const [password, setPassword] = useState("Botix123!");
   const [pushNotice, setPushNotice] = useState("");
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (!session.user) {
@@ -112,6 +113,7 @@ export default function App() {
           <Text style={styles.earningsValue}>{formatCurrency(dayEarnings)}</Text>
         </View>
         {pushNotice ? <Text style={styles.infoText}>{pushNotice}</Text> : null}
+        {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
         {ordersError ? <Text style={styles.errorText}>{ordersError}</Text> : null}
         {!orders.length ? (
           <View style={styles.emptyCard}>
@@ -126,19 +128,29 @@ export default function App() {
             order={order}
             onStart={async () => {
               if (!session.user) return;
-              trackingRef.current?.remove();
-              await updateDriverOrderStatus(session.user.businessId, order.id, "en_route");
-              trackingRef.current = await startLocationTracking(
-                session.user.businessId,
-                order.id,
-                session.user.id
-              );
+              try {
+                setActionError("");
+                trackingRef.current?.remove();
+                await updateDriverOrderStatus(session.user.businessId, order.id, "en_route");
+                trackingRef.current = await startLocationTracking(
+                  session.user.businessId,
+                  order.id,
+                  session.user.id
+                );
+              } catch (error) {
+                setActionError(error instanceof Error ? error.message : "No fue posible iniciar el reparto.");
+              }
             }}
             onDelivered={async () => {
               if (!session.user) return;
-              trackingRef.current?.remove();
-              await stopLocationTracking(session.user.businessId, order.id);
-              await updateDriverOrderStatus(session.user.businessId, order.id, "delivered");
+              try {
+                setActionError("");
+                trackingRef.current?.remove();
+                await stopLocationTracking(session.user.businessId, order.id, session.user.id);
+                await updateDriverOrderStatus(session.user.businessId, order.id, "delivered");
+              } catch (error) {
+                setActionError(error instanceof Error ? error.message : "No fue posible marcar el pedido como entregado.");
+              }
             }}
           />
         ))}
