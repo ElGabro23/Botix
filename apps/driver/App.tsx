@@ -23,6 +23,17 @@ export default function App() {
   const [password, setPassword] = useState("Botix123!");
   const [pushNotice, setPushNotice] = useState("");
 
+  useEffect(() => {
+    if (!session.user) {
+      setPushNotice("");
+      return;
+    }
+
+    void registerDriverPushToken(session.user.id)
+      .then(() => setPushNotice("Notificaciones activadas para nuevos pedidos."))
+      .catch((error) => setPushNotice(error instanceof Error ? error.message : "No fue posible activar notificaciones."));
+  }, [session.user]);
+
   if (session.loading) {
     return (
       <SafeAreaView style={styles.centered}>
@@ -83,13 +94,6 @@ export default function App() {
       </SafeAreaView>
     );
   }
-
-  useEffect(() => {
-    if (!session.user) return;
-    void registerDriverPushToken(session.user.id)
-      .then(() => setPushNotice("Notificaciones activadas para nuevos pedidos."))
-      .catch((error) => setPushNotice(error instanceof Error ? error.message : "No fue posible activar notificaciones."));
-  }, [session.user]);
 
   return (
     <SafeAreaView style={styles.container}>
