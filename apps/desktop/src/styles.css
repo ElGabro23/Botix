@@ -391,6 +391,10 @@ select {
   overflow: auto;
 }
 
+.compact-stack--orders {
+  max-height: 220px;
+}
+
 .list-row,
 .static-row,
 .order-card {

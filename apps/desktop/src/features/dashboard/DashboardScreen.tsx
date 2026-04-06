@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import {
   Bell,
   Bike,
@@ -86,7 +86,7 @@ const initialCourierDraft = {
   displayName: "",
   email: "",
   phone: "",
-  password: "Botix123!"
+  password: ""
 };
 
 type Props = {
@@ -136,6 +136,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
   const [counterCart, setCounterCart] = useState<CartItem[]>([]);
   const [counterCustomerName, setCounterCustomerName] = useState("");
   const [counterPaymentMethod, setCounterPaymentMethod] = useState<PaymentMethod>("cash");
+  const [counterReceivedAmount, setCounterReceivedAmount] = useState(0);
   const [orderSearch, setOrderSearch] = useState("");
   const [orderCart, setOrderCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -243,6 +244,16 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     </div>
   );
 
+  const handleSearchEnter = (
+    event: KeyboardEvent<HTMLInputElement>,
+    results: InventoryItem[],
+    onPick: (productId: string) => void
+  ) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (results[0]) onPick(results[0].id);
+  };
+
   const saveCounterSale = async () => {
     if (!counterCart.length) {
       setNotice("Agrega productos antes de registrar la venta de meson.");
@@ -250,6 +261,10 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     }
     setSaving("counter-sale");
     try {
+      if (counterPaymentMethod === "cash" && counterReceivedAmount < counterTotal) {
+        setNotice("El monto recibido no alcanza para cubrir la venta.");
+        return;
+      }
       await registerCounterSale(user, {
         customerName: counterCustomerName.trim() || undefined,
         paymentMethod: counterPaymentMethod,
@@ -258,7 +273,10 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       setCounterCart([]);
       setCounterSearch("");
       setCounterCustomerName("");
+      setCounterReceivedAmount(0);
       setNotice("Venta de meson registrada correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible registrar la venta.");
     } finally {
       setSaving(null);
     }
@@ -287,6 +305,8 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       setOrderNotes("");
       setDeliveryFee(1500);
       setNotice("Pedido delivery creado correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible crear el pedido.");
     } finally {
       setSaving(null);
     }
@@ -302,6 +322,8 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       await createCustomerRecord(user.businessId, customerDraft);
       setCustomerDraft(initialCustomerDraft);
       setNotice("Cliente registrado correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible guardar el cliente.");
     } finally {
       setSaving(null);
     }
@@ -326,6 +348,8 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       });
       setInventoryDraft(initialInventoryDraft);
       setNotice("Producto guardado en inventario.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible guardar el producto.");
     } finally {
       setSaving(null);
     }
@@ -397,6 +421,8 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     try {
       await importInventoryItems(user.businessId, items);
       setNotice(`Se importaron ${items.length} productos al inventario.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible importar el inventario.");
     } finally {
       setSaving(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -479,10 +505,14 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
                 placeholder="Buscar producto por nombre o SKU"
                 value={counterSearch}
                 onChange={(event) => setCounterSearch(event.target.value)}
+                onKeyDown={(event) =>
+                  handleSearchEnter(event, counterResults, (productId) =>
+                    setCounterCart(addCartItem(counterCart, productId))
+                  )
+                }
               />
             </div>
             {renderProductResults(counterResults, (productId) => setCounterCart(addCartItem(counterCart, productId)))}
-            {renderCart(counterCart, setCounterCart)}
             <div className="field-grid compact-grid">
               <input
                 placeholder="Cliente opcional"
@@ -494,11 +524,19 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
                 <option value="card">Tarjeta</option>
                 <option value="transfer">Transferencia</option>
               </select>
+              <input
+                placeholder="Monto recibido"
+                type="number"
+                value={counterReceivedAmount}
+                onChange={(event) => setCounterReceivedAmount(Number(event.target.value))}
+              />
             </div>
             <div className="summary-strip">
               <span>Total: {formatCurrency(counterTotal)}</span>
               <span>Utilidad: {formatCurrency(counterProfit)}</span>
+              <span>Vuelto: {formatCurrency(Math.max(counterReceivedAmount - counterTotal, 0))}</span>
             </div>
+            {renderCart(counterCart, setCounterCart)}
             <button className="action-button action-button--primary compact-action" onClick={() => void saveCounterSale()}>
               {saving === "counter-sale" ? "Guardando..." : "Registrar venta"}
             </button>
@@ -546,10 +584,14 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
                 placeholder="Buscar producto del pedido"
                 value={orderSearch}
                 onChange={(event) => setOrderSearch(event.target.value)}
+                onKeyDown={(event) =>
+                  handleSearchEnter(event, orderResults, (productId) =>
+                    setOrderCart(addCartItem(orderCart, productId))
+                  )
+                }
               />
             </div>
             {renderProductResults(orderResults, (productId) => setOrderCart(addCartItem(orderCart, productId)))}
-            {renderCart(orderCart, setOrderCart)}
             <div className="field-grid compact-grid">
               <input
                 placeholder="Costo delivery"
@@ -574,6 +616,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
               <span>Total: {formatCurrency(orderSubtotal + deliveryFee)}</span>
               <span>Utilidad: {formatCurrency(orderProfit)}</span>
             </div>
+            {renderCart(orderCart, setOrderCart)}
             <button className="action-button action-button--primary compact-action" onClick={() => void saveDeliveryOrder()}>
               {saving === "delivery-order" ? "Creando..." : "Crear pedido"}
             </button>
@@ -581,7 +624,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
 
           <article className="panel-card compact-card">
             <div className="section-title compact-title">Pedidos activos</div>
-            <div className="stack-list compact-stack">
+            <div className="stack-list compact-stack compact-stack--orders">
               {orders.map((order) => (
                 <button
                   className={`order-card compact-order ${selectedOrder?.id === order.id ? "selected" : ""}`}
@@ -663,12 +706,12 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
           <article className="panel-card compact-card">
             <div className="section-title compact-title">Inventario</div>
             <div className="field-grid compact-grid">
-              <input placeholder="Nombre" value={inventoryDraft.name} onChange={(event) => setInventoryDraft((current) => ({ ...current, name: event.target.value }))} />
-              <input placeholder="Categoria" value={inventoryDraft.category} onChange={(event) => setInventoryDraft((current) => ({ ...current, category: event.target.value }))} />
-              <input placeholder="SKU" value={inventoryDraft.sku} onChange={(event) => setInventoryDraft((current) => ({ ...current, sku: event.target.value }))} />
-              <input placeholder="Precio" type="number" value={inventoryDraft.price} onChange={(event) => setInventoryDraft((current) => ({ ...current, price: Number(event.target.value) }))} />
-              <input placeholder="Costo" type="number" value={inventoryDraft.costPrice} onChange={(event) => setInventoryDraft((current) => ({ ...current, costPrice: Number(event.target.value) }))} />
-              <input placeholder="Stock" type="number" value={inventoryDraft.stock} onChange={(event) => setInventoryDraft((current) => ({ ...current, stock: Number(event.target.value) }))} />
+              <input aria-label="Nombre del producto" placeholder="Nombre del producto" value={inventoryDraft.name} onChange={(event) => setInventoryDraft((current) => ({ ...current, name: event.target.value }))} />
+              <input aria-label="Categoria del producto" placeholder="Categoria" value={inventoryDraft.category} onChange={(event) => setInventoryDraft((current) => ({ ...current, category: event.target.value }))} />
+              <input aria-label="SKU del producto" placeholder="SKU o codigo interno" value={inventoryDraft.sku} onChange={(event) => setInventoryDraft((current) => ({ ...current, sku: event.target.value }))} />
+              <input aria-label="Precio de venta" placeholder="Precio de venta" type="number" value={inventoryDraft.price} onChange={(event) => setInventoryDraft((current) => ({ ...current, price: Number(event.target.value) }))} />
+              <input aria-label="Costo del producto" placeholder="Costo del producto" type="number" value={inventoryDraft.costPrice} onChange={(event) => setInventoryDraft((current) => ({ ...current, costPrice: Number(event.target.value) }))} />
+              <input aria-label="Stock inicial" placeholder="Stock inicial" type="number" value={inventoryDraft.stock} onChange={(event) => setInventoryDraft((current) => ({ ...current, stock: Number(event.target.value) }))} />
             </div>
             <div className="mini-actions">
               <button className="action-button action-button--primary compact-action" onClick={() => void saveInventory()}>
