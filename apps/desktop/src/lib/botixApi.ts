@@ -36,6 +36,8 @@ const identityConverter = <T,>(): FirestoreDataConverter<T> => ({
 const nowIso = () => new Date().toISOString();
 const todayStartIso = () => new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
 const customerIdFromPhone = (phone: string) => `customer-${phone.replace(/\D/g, "") || crypto.randomUUID()}`;
+const withoutUndefined = <T extends Record<string, unknown>>(value: T) =>
+  Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
 
 type InventoryCatalogDocument = {
   items: InventoryItem[];
@@ -261,7 +263,7 @@ export const createDeliveryOrder = async (
     transaction.set(orderRef, {
       businessId: user.businessId,
       orderNumber: nextNumber,
-      customerId: customer.id,
+      customerId: input.customerId,
       customerName: customer.name,
       customerPhone: customer.phone,
       address: customer.address,
@@ -338,7 +340,7 @@ export const registerCounterSale = async (
     transaction.set(
       posLedgerRef(user.businessId),
       {
-        sales: [sale, ...ledger].slice(0, 400),
+        sales: [withoutUndefined(sale), ...ledger].slice(0, 400),
         lastSaleNumber: saleNumber,
         updatedAt: nowIso()
       },

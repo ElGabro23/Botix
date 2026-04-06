@@ -96,7 +96,7 @@ type Props = {
 
 const buildSearchResults = (catalog: InventoryItem[], query: string) => {
   const term = query.trim().toLowerCase();
-  if (!term) return catalog.slice(0, 8);
+  if (!term) return [];
   return catalog
     .filter(
       (item) =>
@@ -136,7 +136,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
   const [counterCart, setCounterCart] = useState<CartItem[]>([]);
   const [counterCustomerName, setCounterCustomerName] = useState("");
   const [counterPaymentMethod, setCounterPaymentMethod] = useState<PaymentMethod>("cash");
-  const [counterReceivedAmount, setCounterReceivedAmount] = useState(0);
+  const [counterReceivedAmount, setCounterReceivedAmount] = useState<string>("");
   const [orderSearch, setOrderSearch] = useState("");
   const [orderCart, setOrderCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -261,7 +261,8 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     }
     setSaving("counter-sale");
     try {
-      if (counterPaymentMethod === "cash" && counterReceivedAmount < counterTotal) {
+      const receivedAmount = Number(counterReceivedAmount || 0);
+      if (counterPaymentMethod === "cash" && receivedAmount < counterTotal) {
         setNotice("El monto recibido no alcanza para cubrir la venta.");
         return;
       }
@@ -273,7 +274,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       setCounterCart([]);
       setCounterSearch("");
       setCounterCustomerName("");
-      setCounterReceivedAmount(0);
+      setCounterReceivedAmount("");
       setNotice("Venta de meson registrada correctamente.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No fue posible registrar la venta.");
@@ -527,14 +528,15 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
               <input
                 placeholder="Monto recibido"
                 type="number"
+                placeholder="Cantidad de efectivo"
                 value={counterReceivedAmount}
-                onChange={(event) => setCounterReceivedAmount(Number(event.target.value))}
+                onChange={(event) => setCounterReceivedAmount(event.target.value)}
               />
             </div>
             <div className="summary-strip">
               <span>Total: {formatCurrency(counterTotal)}</span>
               <span>Utilidad: {formatCurrency(counterProfit)}</span>
-              <span>Vuelto: {formatCurrency(Math.max(counterReceivedAmount - counterTotal, 0))}</span>
+              <span>Vuelto: {formatCurrency(Math.max(Number(counterReceivedAmount || 0) - counterTotal, 0))}</span>
             </div>
             {renderCart(counterCart, setCounterCart)}
             <button className="action-button action-button--primary compact-action" onClick={() => void saveCounterSale()}>
