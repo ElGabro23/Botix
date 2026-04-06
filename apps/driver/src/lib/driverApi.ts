@@ -14,6 +14,12 @@ import type { AppUser, DeliveryOrder } from "@botix/shared";
 import { liveTrackingPath, ordersPath } from "@botix/firebase-core";
 import { firebaseClient } from "./firebase";
 
+const todayStartIso = () => {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+};
+
 export const useDriverSession = () => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +104,35 @@ export const useAssignedOrders = (businessId?: string, courierId?: string) => {
   }, [businessId, courierId]);
 
   return { orders, error };
+};
+
+export const useDriverDayEarnings = (businessId?: string, courierId?: string) => {
+  const [earnings, setEarnings] = useState(0);
+
+  useEffect(() => {
+    if (!businessId || !courierId) {
+      setEarnings(0);
+      return;
+    }
+
+    return onSnapshot(
+      query(
+        collection(firebaseClient.db, ordersPath(businessId)),
+        where("businessId", "==", businessId),
+        where("assignedCourierId", "==", courierId)
+      ),
+      (snap) => {
+        const start = todayStartIso();
+        const total = snap.docs
+          .map((docItem) => ({ id: docItem.id, ...docItem.data() }) as DeliveryOrder)
+          .filter((order) => order.status === "delivered" && order.updatedAt >= start)
+          .reduce((sum, order) => sum + (order.deliveryFee ?? 0), 0);
+        setEarnings(total);
+      }
+    );
+  }, [businessId, courierId]);
+
+  return earnings;
 };
 
 export const updateDriverOrderStatus = async (

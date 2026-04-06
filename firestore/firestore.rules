@@ -128,7 +128,10 @@ service cloud.firestore {
     match /trackingSessions/{token} {
       allow get: if resource.data.active == true;
       allow list: if false;
-      allow create, update, delete: if false;
+      allow create, update: if isSignedIn()
+        && sameBusiness(request.resource.data.businessId)
+        && userRole() in ['admin', 'cashier'];
+      allow delete: if false;
     }
   }
 }

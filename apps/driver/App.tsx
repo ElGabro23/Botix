@@ -7,6 +7,7 @@ import { formatCurrency, orderStatusLabel } from "@botix/shared";
 import {
   startLocationTracking,
   stopLocationTracking,
+  useDriverDayEarnings,
   updateDriverOrderStatus,
   useAssignedOrders,
   useDriverSession
@@ -15,6 +16,7 @@ import {
 export default function App() {
   const session = useDriverSession();
   const { orders, error: ordersError } = useAssignedOrders(session.user?.businessId, session.user?.id);
+  const dayEarnings = useDriverDayEarnings(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
   const [email, setEmail] = useState("driver@botix.cl");
   const [password, setPassword] = useState("Botix123!");
@@ -72,6 +74,10 @@ export default function App() {
           <Pressable style={styles.secondaryButton} onPress={() => void session.signOut()}>
             <Text style={styles.secondaryButtonText}>Salir</Text>
           </Pressable>
+        </View>
+        <View style={styles.earningsCard}>
+          <Text style={styles.earningsLabel}>Ganancia del dia</Text>
+          <Text style={styles.earningsValue}>{formatCurrency(dayEarnings)}</Text>
         </View>
         {ordersError ? <Text style={styles.errorText}>{ordersError}</Text> : null}
         {!orders.length ? (
@@ -146,6 +152,13 @@ const OrderCard = ({
         }
       >
         <Text style={styles.secondaryButtonText}>Abrir direccion</Text>
+      </Pressable>
+
+      <Pressable
+        style={styles.phoneButton}
+        onPress={() => void Linking.openURL(`tel:${order.customerPhone.replace(/\s+/g, "")}`)}
+      >
+        <Text style={styles.secondaryButtonText}>Llamar cliente</Text>
       </Pressable>
 
       {order.status !== "en_route" ? (
@@ -224,6 +237,25 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 3
   },
+  earningsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 4,
+    shadowColor: "#7891c4",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 2
+  },
+  earningsLabel: {
+    color: "#6b7992",
+    marginBottom: 4
+  },
+  earningsValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#20314c"
+  },
   orderTop: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -280,6 +312,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 16,
     backgroundColor: "#edf3ff",
+    alignItems: "center"
+  },
+  phoneButton: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "#eef8f1",
     alignItems: "center"
   },
   primaryButtonText: {

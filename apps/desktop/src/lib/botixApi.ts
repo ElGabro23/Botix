@@ -14,7 +14,6 @@ import {
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, getAuth, signOut as signOutAuth, updateProfile } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 import type {
   AppUser,
   CounterSale,
@@ -90,6 +89,7 @@ const inventoryDocRef = (businessId: string) =>
   doc(firebaseClient.db, "businesses", businessId, "settings", "inventoryCatalog");
 const posLedgerRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "posLedger");
 const countersRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "counters");
+const trackingSessionRef = (token: string) => doc(firebaseClient.db, "trackingSessions", token);
 
 export const subscribeUserProfile = (
   userId: string,
@@ -554,13 +554,40 @@ export const subscribeDaySummary = (
 };
 
 export const createTrackingLink = async (businessId: string, orderId: string) => {
-  const callable = httpsCallable<
-    { businessId: string; orderId: string },
-    { token: string }
-  >(firebaseClient.functions, "createTrackingSession");
+  return runTransaction(firebaseClient.db, async (transaction) => {
+    const orderRef = doc(firebaseClient.db, ordersPath(businessId), orderId);
+    const orderSnap = await transaction.get(orderRef);
+    if (!orderSnap.exists()) throw new Error("Pedido no encontrado.");
 
-  const result = await callable({ businessId, orderId });
-  return result.data.token;
+    const order = orderSnap.data() as DeliveryOrder;
+    const token = order.trackingToken ?? crypto.randomUUID().replace(/-/g, "");
+    const timestamp = nowIso();
+
+    transaction.set(
+      trackingSessionRef(token),
+      {
+        businessId,
+        orderId,
+        customerName: order.customerName,
+        status: order.status,
+        courierName: order.assignedCourierName ?? null,
+        active: !["delivered", "cancelled"].includes(order.status),
+        updatedAt: timestamp
+      },
+      { merge: true }
+    );
+
+    transaction.set(
+      orderRef,
+      {
+        trackingToken: token,
+        updatedAt: timestamp
+      },
+      { merge: true }
+    );
+
+    return token;
+  });
 };
 
 export const createCourierAccount = async (
