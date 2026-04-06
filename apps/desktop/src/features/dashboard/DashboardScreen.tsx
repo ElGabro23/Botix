@@ -554,7 +554,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
           <div>
             <strong>{user.displayName}</strong>
             <span>
-              {business?.businessName ?? user.businessId}
+              {isSuperAdmin ? "Panel Superadmin" : business?.businessName ?? user.businessId}
               {!isSuperAdmin ? ` | ${business?.subscriptionStatus ?? "active"}` : ""}
             </span>
           </div>
