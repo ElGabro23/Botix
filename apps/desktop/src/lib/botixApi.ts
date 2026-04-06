@@ -306,7 +306,9 @@ export const createDeliveryOrder = async (
     const inventory = inventorySnap.exists()
       ? (((inventorySnap.data() as InventoryCatalogDocument).items ?? []) as InventoryItem[])
       : [];
-    const courier = courierSnap?.exists() ? (courierSnap.data() as CourierProfile) : null;
+    const courier = courierSnap?.exists()
+      ? ({ id: courierSnap.id, ...courierSnap.data() } as CourierProfile)
+      : null;
 
     const items = normalizeOrderItems(inventory, input.items);
     if (!items.length) throw new Error("Selecciona productos validos para el pedido.");
@@ -317,26 +319,29 @@ export const createDeliveryOrder = async (
     const timestamp = nowIso();
     const nextNumber = (counters.deliveryOrderSequence ?? 1023) + 1;
 
-    transaction.set(orderRef, {
-      businessId: user.businessId,
-      orderNumber: nextNumber,
-      customerId: input.customerId,
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      address: customer.address,
-      items,
-      subtotal,
-      deliveryFee: input.deliveryFee,
-      total,
-      paymentMethod: input.paymentMethod,
-      status: courier ? "assigned" : "pending",
-      assignedCourierId: courier?.id,
-      assignedCourierName: courier?.displayName,
-      createdBy: user.id,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      notes: input.notes ?? ""
-    });
+    transaction.set(
+      orderRef,
+      withoutUndefined({
+        businessId: user.businessId,
+        orderNumber: nextNumber,
+        customerId: customer.id ?? customerRef.id,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        address: customer.address,
+        items,
+        subtotal,
+        deliveryFee: input.deliveryFee,
+        total,
+        paymentMethod: input.paymentMethod,
+        status: courier ? "assigned" : "pending",
+        assignedCourierId: courier?.id,
+        assignedCourierName: courier?.displayName,
+        createdBy: user.id,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        notes: input.notes ?? ""
+      })
+    );
 
     transaction.set(
       customerRef,
