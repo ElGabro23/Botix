@@ -32,7 +32,7 @@ jobs:
         run: npm run dist:win
         working-directory: apps/desktop
         env:
-          VITE_FIREBASE_API_KEY: AIzaSyBIy_RMEiIyYLZWYiuo1UdQLiTLn4smHx8
+          VITE_FIREBASE_API_KEY: AIzaSyBIy_RMiEIyYlZWYiuo1UdQliTln4smHx8
           VITE_FIREBASE_AUTH_DOMAIN: botix-e493b.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: botix-e493b
           VITE_FIREBASE_STORAGE_BUCKET: botix-e493b.firebasestorage.app

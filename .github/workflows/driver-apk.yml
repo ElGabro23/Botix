@@ -41,7 +41,7 @@ jobs:
         run: npx expo prebuild --clean --platform android --non-interactive
         working-directory: apps/driver
         env:
-          EXPO_PUBLIC_FIREBASE_API_KEY: AIzaSyBIy_RMEiIyYLZWYiuo1UdQLiTLn4smHx8
+          EXPO_PUBLIC_FIREBASE_API_KEY: AIzaSyBIy_RMiEIyYlZWYiuo1UdQliTln4smHx8
           EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: botix-e493b.firebaseapp.com
           EXPO_PUBLIC_FIREBASE_PROJECT_ID: botix-e493b
           EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: botix-e493b.firebasestorage.app
