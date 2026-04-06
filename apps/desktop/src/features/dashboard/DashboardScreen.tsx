@@ -147,6 +147,8 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
   const [customerDraft, setCustomerDraft] = useState(initialCustomerDraft);
   const [courierDraft, setCourierDraft] = useState(initialCourierDraft);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isAdmin = user.role === "admin";
+  const isCashier = user.role === "cashier";
 
   useEffect(() => subscribeOrders(user.businessId, setOrders), [user.businessId]);
   useEffect(() => subscribeCustomers(user.businessId, setCustomers), [user.businessId]);
@@ -177,6 +179,16 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     () => [...inventoryItems].filter((item) => item.active).sort((a, b) => a.name.localeCompare(b.name)),
     [inventoryItems]
   );
+  const visibleSections = useMemo(
+    () => sections.filter((section) => isAdmin || ["overview", "orders", "inventory", "customers"].includes(section.key)),
+    [isAdmin]
+  );
+
+  useEffect(() => {
+    if (!visibleSections.some((section) => section.key === activeSection)) {
+      setActiveSection(visibleSections[0]?.key ?? "overview");
+    }
+  }, [activeSection, visibleSections]);
 
   const counterResults = useMemo(() => buildSearchResults(activeInventory, counterSearch), [activeInventory, counterSearch]);
   const orderResults = useMemo(() => buildSearchResults(activeInventory, orderSearch), [activeInventory, orderSearch]);
@@ -467,7 +479,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
         </div>
 
         <nav className="topnav">
-          {sections.map((section) => {
+          {visibleSections.map((section) => {
             const Icon = section.icon;
             return (
               <button
@@ -554,7 +566,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
             </div>
             <div className="section-title compact-title compact-title--spaced">Ultimas ventas</div>
             <div className="compact-table">
-              {counterSales.slice(0, 8).map((sale) => (
+              {counterSales.slice(0, 3).map((sale) => (
                 <div className="compact-row" key={sale.id}>
                   <div>
                     <strong>Venta #{sale.saleNumber}</strong>
@@ -705,38 +717,40 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
 
       {activeSection === "inventory" ? (
         <main className="module-layout">
-          <article className="panel-card compact-card">
-            <div className="section-title compact-title">Inventario</div>
-            <div className="field-grid compact-grid">
-              <input aria-label="Nombre del producto" placeholder="Nombre del producto" value={inventoryDraft.name} onChange={(event) => setInventoryDraft((current) => ({ ...current, name: event.target.value }))} />
-              <input aria-label="Categoria del producto" placeholder="Categoria" value={inventoryDraft.category} onChange={(event) => setInventoryDraft((current) => ({ ...current, category: event.target.value }))} />
-              <input aria-label="SKU del producto" placeholder="SKU o codigo interno" value={inventoryDraft.sku} onChange={(event) => setInventoryDraft((current) => ({ ...current, sku: event.target.value }))} />
-              <input aria-label="Precio de venta" placeholder="Valor de venta" type="number" value={inventoryDraft.price} onChange={(event) => setInventoryDraft((current) => ({ ...current, price: event.target.value }))} />
-              <input aria-label="Costo del producto" placeholder="Coste del producto" type="number" value={inventoryDraft.costPrice} onChange={(event) => setInventoryDraft((current) => ({ ...current, costPrice: event.target.value }))} />
-              <input aria-label="Stock inicial" placeholder="Stock" type="number" value={inventoryDraft.stock} onChange={(event) => setInventoryDraft((current) => ({ ...current, stock: event.target.value }))} />
-            </div>
-            <div className="mini-actions">
-              <button className="action-button action-button--primary compact-action" onClick={() => void saveInventory()}>
-                {saving === "inventory" ? "Guardando..." : "Guardar producto"}
-              </button>
-              <button className="action-button action-button--light compact-action" onClick={downloadInventoryTemplate}>
-                Descargar plantilla Excel
-              </button>
-              <button className="action-button action-button--light compact-action" onClick={() => fileInputRef.current?.click()}>
-                Importar desde Excel CSV
-              </button>
-              <input accept=".csv" hidden onChange={(event) => void onImportInventory(event)} ref={fileInputRef} type="file" />
-            </div>
-          </article>
+          {isAdmin ? (
+            <article className="panel-card compact-card">
+              <div className="section-title compact-title">Inventario</div>
+              <div className="field-grid compact-grid">
+                <input aria-label="Nombre del producto" placeholder="Nombre del producto" value={inventoryDraft.name} onChange={(event) => setInventoryDraft((current) => ({ ...current, name: event.target.value }))} />
+                <input aria-label="Categoria del producto" placeholder="Categoria" value={inventoryDraft.category} onChange={(event) => setInventoryDraft((current) => ({ ...current, category: event.target.value }))} />
+                <input aria-label="SKU del producto" placeholder="SKU o codigo interno" value={inventoryDraft.sku} onChange={(event) => setInventoryDraft((current) => ({ ...current, sku: event.target.value }))} />
+                <input aria-label="Precio de venta" placeholder="Valor de venta" type="number" value={inventoryDraft.price} onChange={(event) => setInventoryDraft((current) => ({ ...current, price: event.target.value }))} />
+                <input aria-label="Costo del producto" placeholder="Coste del producto" type="number" value={inventoryDraft.costPrice} onChange={(event) => setInventoryDraft((current) => ({ ...current, costPrice: event.target.value }))} />
+                <input aria-label="Stock inicial" placeholder="Stock" type="number" value={inventoryDraft.stock} onChange={(event) => setInventoryDraft((current) => ({ ...current, stock: event.target.value }))} />
+              </div>
+              <div className="mini-actions">
+                <button className="action-button action-button--primary compact-action" onClick={() => void saveInventory()}>
+                  {saving === "inventory" ? "Guardando..." : "Guardar producto"}
+                </button>
+                <button className="action-button action-button--light compact-action" onClick={downloadInventoryTemplate}>
+                  Descargar plantilla Excel
+                </button>
+                <button className="action-button action-button--light compact-action" onClick={() => fileInputRef.current?.click()}>
+                  Importar desde Excel CSV
+                </button>
+                <input accept=".csv" hidden onChange={(event) => void onImportInventory(event)} ref={fileInputRef} type="file" />
+              </div>
+            </article>
+          ) : null}
 
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Catalogo</div>
+            <div className="section-title compact-title">{isCashier ? "Inventario disponible" : "Catalogo"}</div>
             <div className="inventory-table">
               <div className="inventory-row inventory-row--head">
                 <span>Producto</span>
                 <span>SKU</span>
                 <span>Precio</span>
-                <span>Costo</span>
+                {isAdmin ? <span>Costo</span> : null}
                 <span>Stock</span>
               </div>
               {activeInventory.map((item) => (
@@ -744,7 +758,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
                   <span>{item.name}</span>
                   <span>{item.sku}</span>
                   <span>{formatCurrency(item.price)}</span>
-                  <span>{formatCurrency(item.costPrice)}</span>
+                  {isAdmin ? <span>{formatCurrency(item.costPrice)}</span> : null}
                   <span>{item.stock}</span>
                 </div>
               ))}
@@ -791,7 +805,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
         </main>
       ) : null}
 
-      {activeSection === "couriers" ? (
+      {activeSection === "couriers" && isAdmin ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
             <div className="section-title compact-title">Agregar repartidor</div>
@@ -826,7 +840,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
         </main>
       ) : null}
 
-      {activeSection === "reports" ? (
+      {activeSection === "reports" && isAdmin ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
             <div className="section-title compact-title">Reporte mensual</div>

@@ -21,6 +21,14 @@ service cloud.firestore {
       return sameBusiness(businessId) && userRole() in ['admin', 'cashier'];
     }
 
+    function isAdmin(businessId) {
+      return sameBusiness(businessId) && userRole() == 'admin';
+    }
+
+    function isCashier(businessId) {
+      return sameBusiness(businessId) && userRole() == 'cashier';
+    }
+
     function isCourierOfOrder(resourceData) {
       return isSignedIn()
         && sameBusiness(resourceData.businessId)
@@ -39,11 +47,13 @@ service cloud.firestore {
 
     match /businesses/{businessId} {
       allow read: if sameBusiness(businessId);
-      allow write: if isBackoffice(businessId);
+      allow write: if isAdmin(businessId);
 
       match /settings/{settingId} {
         allow read: if sameBusiness(businessId);
-        allow write: if isBackoffice(businessId);
+        allow create, update: if isAdmin(businessId)
+          || (isCashier(businessId) && settingId in ['posLedger', 'counters']);
+        allow delete: if false;
       }
 
       match /customers/{customerId} {
@@ -54,8 +64,8 @@ service cloud.firestore {
 
       match /couriers/{courierId} {
         allow read: if sameBusiness(businessId);
-        allow create: if isBackoffice(businessId);
-        allow update: if isBackoffice(businessId)
+        allow create: if isAdmin(businessId);
+        allow update: if isAdmin(businessId)
           || (
             sameBusiness(businessId)
             && userRole() == 'courier'
@@ -122,4 +132,3 @@ service cloud.firestore {
     }
   }
 }
-
