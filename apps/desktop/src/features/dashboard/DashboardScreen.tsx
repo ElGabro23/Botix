@@ -547,7 +547,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
             </div>
             <div className="summary-strip">
               <span>Total: {formatCurrency(counterTotal)}</span>
-              <span>Utilidad: {formatCurrency(counterProfit)}</span>
+              {isAdmin ? <span>Utilidad: {formatCurrency(counterProfit)}</span> : null}
               <span>Vuelto: {formatCurrency(Math.max(Number(counterReceivedAmount || 0) - counterTotal, 0))}</span>
             </div>
             {renderCart(counterCart, setCounterCart)}
@@ -562,7 +562,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
               <div className="metric-tile compact-tile"><span>Ventas</span><strong>{formatCurrency(summary.salesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Meson</span><strong>{formatCurrency(summary.counterSalesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Delivery</span><strong>{formatCurrency(summary.deliveryTotal)}</strong></div>
-              <div className="metric-tile compact-tile"><span>Ganancia</span><strong>{formatCurrency(summary.profitTotal)}</strong></div>
+              {isAdmin ? <div className="metric-tile compact-tile"><span>Ganancia</span><strong>{formatCurrency(summary.profitTotal)}</strong></div> : null}
             </div>
             <div className="section-title compact-title compact-title--spaced">Ultimas ventas</div>
             <div className="compact-table">
@@ -628,7 +628,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
             <div className="summary-strip">
               <span>Subtotal: {formatCurrency(orderSubtotal)}</span>
               <span>Total: {formatCurrency(orderSubtotal + normalizedDeliveryFee)}</span>
-              <span>Utilidad: {formatCurrency(orderProfit)}</span>
+              {isAdmin ? <span>Utilidad: {formatCurrency(orderProfit)}</span> : null}
             </div>
             {renderCart(orderCart, setOrderCart)}
             <button className="action-button action-button--primary compact-action" onClick={() => void saveDeliveryOrder()}>

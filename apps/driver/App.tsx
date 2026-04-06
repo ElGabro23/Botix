@@ -17,7 +17,7 @@ export default function App() {
   const orders = useAssignedOrders(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
   const [email, setEmail] = useState("driver@botix.cl");
-  const [password, setPassword] = useState("123456");
+  const [password, setPassword] = useState("Botix123!");
 
   if (session.loading) {
     return (
