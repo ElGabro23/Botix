@@ -18,6 +18,7 @@ import type {
   Customer,
   DaySummary,
   DeliveryOrder,
+  InventoryItem,
   LiveTracking,
   OrderDraftInput,
   OrderStatus
@@ -218,4 +219,42 @@ export const createTrackingLink = async (businessId: string, orderId: string) =>
 
   const result = await callable({ businessId, orderId });
   return result.data.token;
+};
+
+type InventoryCatalogDocument = {
+  items: InventoryItem[];
+  updatedAt?: string;
+};
+
+export const subscribeInventory = (
+  businessId: string,
+  onData: (items: InventoryItem[]) => void
+) =>
+  onSnapshot(
+    doc(firebaseClient.db, "businesses", businessId, "settings", "inventoryCatalog").withConverter(
+      identityConverter<InventoryCatalogDocument>()
+    ),
+    (snap) => onData(snap.exists() ? snap.data().items ?? [] : [])
+  );
+
+export const saveInventoryItem = async (businessId: string, item: Omit<InventoryItem, "updatedAt">) => {
+  const inventoryRef = doc(firebaseClient.db, "businesses", businessId, "settings", "inventoryCatalog");
+
+  await runTransaction(firebaseClient.db, async (transaction) => {
+    const snap = await transaction.get(inventoryRef);
+    const current = snap.exists() ? ((snap.data().items as InventoryItem[] | undefined) ?? []) : [];
+    const updatedItem: InventoryItem = { ...item, updatedAt: nowIso() };
+    const nextItems = [...current.filter((entry) => entry.id !== item.id), updatedItem].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
+    transaction.set(
+      inventoryRef,
+      {
+        items: nextItems,
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+  });
 };

@@ -53,12 +53,22 @@ jobs:
         run: sed -i '/enableBundleCompression/d' android/app/build.gradle
         working-directory: apps/driver
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug
+      - name: Patch release signing
+        run: python - <<'PY'
+          from pathlib import Path
+          build_gradle = Path("android/app/build.gradle")
+          text = build_gradle.read_text()
+          text = text.replace("signingConfig signingConfigs.release", "signingConfig signingConfigs.debug")
+          build_gradle.write_text(text)
+          PY
+        working-directory: apps/driver
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease
         working-directory: apps/driver/android
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: botix-driver-apk
-          path: apps/driver/android/app/build/outputs/apk/debug/*.apk
+          path: apps/driver/android/app/build/outputs/apk/release/*.apk

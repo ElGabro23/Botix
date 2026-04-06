@@ -137,6 +137,8 @@ input {
   border-radius: 999px;
   color: #6c7a92;
   background: #f5f7ff;
+  border: 0;
+  cursor: pointer;
 }
 
 .nav-item.active {
@@ -158,6 +160,15 @@ input {
   display: grid;
   grid-template-columns: 0.95fr 1.2fr 1fr;
   gap: 18px;
+}
+
+.module-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.module-layout--delivery {
+  grid-template-columns: 1.1fr 0.95fr;
 }
 
 .column {
@@ -240,6 +251,15 @@ input {
   border-radius: 14px;
   color: #ae2d2d;
   background: #fff1f1;
+}
+
+.notice-banner {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  color: #30548c;
+  background: rgba(222, 236, 255, 0.92);
+  border: 1px solid #c9dafd;
 }
 
 .metric-row,
@@ -387,12 +407,70 @@ input {
   word-break: break-all;
 }
 
+.inventory-form {
+  margin-bottom: 12px;
+}
+
+.inventory-table {
+  display: grid;
+  gap: 10px;
+}
+
+.inventory-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 80px 120px;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #fbfcff;
+  border: 1px solid #ecf0fb;
+}
+
+.inventory-row--head {
+  background: #f3f6ff;
+  color: #56627c;
+  font-weight: 700;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric-tile {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #f7faff, #eef4ff);
+  border: 1px solid #dfe8ff;
+}
+
+.metric-tile span {
+  color: #6b7892;
+}
+
+.metric-tile strong {
+  font-size: 28px;
+}
+
 @media (max-width: 1320px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
 
+  .module-layout--delivery,
+  .report-grid {
+    grid-template-columns: 1fr;
+  }
+
   .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-row {
     grid-template-columns: 1fr;
   }
 }

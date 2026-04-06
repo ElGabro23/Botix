@@ -112,6 +112,17 @@ export interface DaySummary {
   openOrders: number;
 }
 
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: string;
+  sku: string;
+  price: number;
+  stock: number;
+  active: boolean;
+  updatedAt: string;
+}
+
 export interface OrderDraftInput {
   customerName: string;
   customerPhone: string;
@@ -125,4 +136,3 @@ export interface OrderDraftInput {
   }>;
   notes?: string;
 }
-
