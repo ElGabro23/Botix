@@ -54,13 +54,7 @@ jobs:
         working-directory: apps/driver
 
       - name: Patch release signing
-        run: python - <<'PY'
-          from pathlib import Path
-          build_gradle = Path("android/app/build.gradle")
-          text = build_gradle.read_text()
-          text = text.replace("signingConfig signingConfigs.release", "signingConfig signingConfigs.debug")
-          build_gradle.write_text(text)
-          PY
+        run: sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/g' android/app/build.gradle
         working-directory: apps/driver
 
       - name: Build release APK
