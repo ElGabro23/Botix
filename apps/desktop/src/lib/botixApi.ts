@@ -34,10 +34,38 @@ const identityConverter = <T,>(): FirestoreDataConverter<T> => ({
 });
 
 const nowIso = () => new Date().toISOString();
-const todayStartIso = () => new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+const monthStartIso = () => {
+  const date = new Date();
+  date.setDate(1);
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+};
 const customerIdFromPhone = (phone: string) => `customer-${phone.replace(/\D/g, "") || crypto.randomUUID()}`;
 const withoutUndefined = <T extends Record<string, unknown>>(value: T) =>
   Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
+
+const applyInventoryDiscount = (catalog: InventoryItem[], items: OrderItem[]) => {
+  const timestamp = nowIso();
+  const inventoryMap = new Map(catalog.map((item) => [item.id, item]));
+
+  for (const orderItem of items) {
+    const inventoryItem = inventoryMap.get(orderItem.id);
+    if (!inventoryItem) {
+      throw new Error(`No se encontro el producto ${orderItem.name} en inventario.`);
+    }
+    if (inventoryItem.stock < orderItem.quantity) {
+      throw new Error(`Stock insuficiente para ${orderItem.name}. Disponible: ${inventoryItem.stock}.`);
+    }
+
+    inventoryMap.set(orderItem.id, {
+      ...inventoryItem,
+      stock: inventoryItem.stock - orderItem.quantity,
+      updatedAt: timestamp
+    });
+  }
+
+  return [...inventoryMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+};
 
 type InventoryCatalogDocument = {
   items: InventoryItem[];
@@ -210,7 +238,7 @@ const normalizeOrderItems = (catalog: InventoryItem[], items: Array<{ inventoryI
       const costSubtotal = product.costPrice * entry.quantity;
 
       return {
-        id: crypto.randomUUID(),
+        id: product.id,
         sku: product.sku,
         name: product.name,
         quantity: entry.quantity,
@@ -255,6 +283,7 @@ export const createDeliveryOrder = async (
     const items = normalizeOrderItems(inventory, input.items);
     if (!items.length) throw new Error("Selecciona productos validos para el pedido.");
 
+    const nextInventory = applyInventoryDiscount(inventory, items);
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
     const total = subtotal + input.deliveryFee;
     const timestamp = nowIso();
@@ -296,6 +325,15 @@ export const createDeliveryOrder = async (
       },
       { merge: true }
     );
+
+    transaction.set(
+      inventoryRef,
+      {
+        items: nextInventory,
+        updatedAt: timestamp
+      },
+      { merge: true }
+    );
   });
 };
 
@@ -322,8 +360,10 @@ export const registerCounterSale = async (
     const items = normalizeOrderItems(inventory, input.items);
     if (!items.length) throw new Error("Selecciona productos para la venta.");
 
+    const nextInventory = applyInventoryDiscount(inventory, items);
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
     const saleNumber = (counters.lastSaleNumber ?? 0) + 1;
+    const timestamp = nowIso();
     const sale: CounterSale = {
       id: crypto.randomUUID(),
       businessId: user.businessId,
@@ -334,7 +374,7 @@ export const registerCounterSale = async (
       total: subtotal,
       paymentMethod: input.paymentMethod,
       createdBy: user.id,
-      createdAt: nowIso()
+      createdAt: timestamp
     };
 
     transaction.set(
@@ -342,7 +382,7 @@ export const registerCounterSale = async (
       {
         sales: [withoutUndefined(sale), ...ledger].slice(0, 400),
         lastSaleNumber: saleNumber,
-        updatedAt: nowIso()
+        updatedAt: timestamp
       },
       { merge: true }
     );
@@ -352,6 +392,15 @@ export const registerCounterSale = async (
       {
         lastSaleNumber: saleNumber,
         updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    transaction.set(
+      inventoryDocRef(user.businessId),
+      {
+        items: nextInventory,
+        updatedAt: timestamp
       },
       { merge: true }
     );
@@ -434,7 +483,7 @@ export const subscribeDaySummary = (
   const unsubscribeOrders = onSnapshot(
     query(
       collection(firebaseClient.db, ordersPath(businessId)).withConverter(identityConverter<DeliveryOrder>()),
-      where("createdAt", ">=", todayStartIso())
+      where("createdAt", ">=", monthStartIso())
     ),
     (snap) => {
       deliveryOrders = snap.docs.map((docItem) => docItem.data());
@@ -446,7 +495,7 @@ export const subscribeDaySummary = (
     posLedgerRef(businessId).withConverter(identityConverter<PointOfSaleLedgerDocument>()),
     (snap) => {
       const allSales = snap.exists() ? (snap.data().sales ?? []) : [];
-      counterSales = allSales.filter((sale) => sale.createdAt >= todayStartIso());
+      counterSales = allSales.filter((sale) => sale.createdAt >= monthStartIso());
       emit();
     }
   );

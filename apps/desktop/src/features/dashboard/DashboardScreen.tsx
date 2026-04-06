@@ -70,9 +70,9 @@ const initialInventoryDraft = {
   name: "",
   category: "",
   sku: "",
-  price: 0,
-  costPrice: 0,
-  stock: 0
+  price: "",
+  costPrice: "",
+  stock: ""
 };
 
 const initialCustomerDraft = {
@@ -140,7 +140,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
   const [orderSearch, setOrderSearch] = useState("");
   const [orderCart, setOrderCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [deliveryFee, setDeliveryFee] = useState(1500);
+  const [deliveryFee, setDeliveryFee] = useState("");
   const [orderPaymentMethod, setOrderPaymentMethod] = useState<PaymentMethod>("cash");
   const [orderNotes, setOrderNotes] = useState("");
   const [inventoryDraft, setInventoryDraft] = useState(initialInventoryDraft);
@@ -186,6 +186,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     [activeInventory, counterCart, counterTotal]
   );
   const orderSubtotal = useMemo(() => sumCart(activeInventory, orderCart), [activeInventory, orderCart]);
+  const normalizedDeliveryFee = Number(deliveryFee || 0);
   const orderProfit = useMemo(
     () => orderSubtotal - sumCost(activeInventory, orderCart),
     [activeInventory, orderCart, orderSubtotal]
@@ -296,7 +297,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     try {
       await createDeliveryOrder(user, {
         customerId: selectedCustomerId,
-        deliveryFee,
+        deliveryFee: normalizedDeliveryFee,
         paymentMethod: orderPaymentMethod,
         notes: orderNotes,
         items: orderCart
@@ -304,7 +305,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       setOrderCart([]);
       setOrderSearch("");
       setOrderNotes("");
-      setDeliveryFee(1500);
+      setDeliveryFee("");
       setNotice("Pedido delivery creado correctamente.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No fue posible crear el pedido.");
@@ -342,9 +343,9 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
         name: inventoryDraft.name,
         category: inventoryDraft.category,
         sku: inventoryDraft.sku,
-        price: inventoryDraft.price,
-        costPrice: inventoryDraft.costPrice,
-        stock: inventoryDraft.stock,
+        price: Number(inventoryDraft.price || 0),
+        costPrice: Number(inventoryDraft.costPrice || 0),
+        stock: Number(inventoryDraft.stock || 0),
         active: true
       });
       setInventoryDraft(initialInventoryDraft);
@@ -438,13 +439,13 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       body{font-family:Segoe UI,sans-serif;padding:32px;color:#20314c}
       table{width:100%;border-collapse:collapse}td,th{padding:12px;border-bottom:1px solid #dfe5f5;text-align:left}
       </style></head><body>
-      <h1>Reporte BOTIX</h1>
+      <h1>Reporte mensual BOTIX</h1>
       <p>Negocio: ${user.businessId}</p>
       <p>Fecha: ${new Date().toLocaleString("es-CL")}</p>
       <table><tbody>
-      <tr><th>Ventas del dia</th><td>${formatCurrency(summary.salesTotal)}</td></tr>
-      <tr><th>Ventas meson</th><td>${formatCurrency(summary.counterSalesTotal)}</td></tr>
-      <tr><th>Delivery</th><td>${formatCurrency(summary.deliveryTotal)}</td></tr>
+      <tr><th>Ventas del mes</th><td>${formatCurrency(summary.salesTotal)}</td></tr>
+      <tr><th>Ventas meson del mes</th><td>${formatCurrency(summary.counterSalesTotal)}</td></tr>
+      <tr><th>Delivery del mes</th><td>${formatCurrency(summary.deliveryTotal)}</td></tr>
       <tr><th>Utilidad estimada</th><td>${formatCurrency(summary.profitTotal)}</td></tr>
       <tr><th>Pedidos abiertos</th><td>${summary.openOrders}</td></tr>
       </tbody></table></body></html>
@@ -526,7 +527,6 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
                 <option value="transfer">Transferencia</option>
               </select>
               <input
-                placeholder="Monto recibido"
                 type="number"
                 placeholder="Cantidad de efectivo"
                 value={counterReceivedAmount}
@@ -545,7 +545,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
           </article>
 
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Resumen del Dia</div>
+            <div className="section-title compact-title">Resumen del Mes</div>
             <div className="metrics-grid">
               <div className="metric-tile compact-tile"><span>Ventas</span><strong>{formatCurrency(summary.salesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Meson</span><strong>{formatCurrency(summary.counterSalesTotal)}</strong></div>
@@ -596,10 +596,10 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
             {renderProductResults(orderResults, (productId) => setOrderCart(addCartItem(orderCart, productId)))}
             <div className="field-grid compact-grid">
               <input
-                placeholder="Costo delivery"
+                placeholder="Coste Delivery"
                 type="number"
                 value={deliveryFee}
-                onChange={(event) => setDeliveryFee(Number(event.target.value))}
+                onChange={(event) => setDeliveryFee(event.target.value)}
               />
               <select value={orderPaymentMethod} onChange={(event) => setOrderPaymentMethod(event.target.value as PaymentMethod)}>
                 <option value="cash">Efectivo</option>
@@ -615,7 +615,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
             </div>
             <div className="summary-strip">
               <span>Subtotal: {formatCurrency(orderSubtotal)}</span>
-              <span>Total: {formatCurrency(orderSubtotal + deliveryFee)}</span>
+              <span>Total: {formatCurrency(orderSubtotal + normalizedDeliveryFee)}</span>
               <span>Utilidad: {formatCurrency(orderProfit)}</span>
             </div>
             {renderCart(orderCart, setOrderCart)}
@@ -711,9 +711,9 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
               <input aria-label="Nombre del producto" placeholder="Nombre del producto" value={inventoryDraft.name} onChange={(event) => setInventoryDraft((current) => ({ ...current, name: event.target.value }))} />
               <input aria-label="Categoria del producto" placeholder="Categoria" value={inventoryDraft.category} onChange={(event) => setInventoryDraft((current) => ({ ...current, category: event.target.value }))} />
               <input aria-label="SKU del producto" placeholder="SKU o codigo interno" value={inventoryDraft.sku} onChange={(event) => setInventoryDraft((current) => ({ ...current, sku: event.target.value }))} />
-              <input aria-label="Precio de venta" placeholder="Precio de venta" type="number" value={inventoryDraft.price} onChange={(event) => setInventoryDraft((current) => ({ ...current, price: Number(event.target.value) }))} />
-              <input aria-label="Costo del producto" placeholder="Costo del producto" type="number" value={inventoryDraft.costPrice} onChange={(event) => setInventoryDraft((current) => ({ ...current, costPrice: Number(event.target.value) }))} />
-              <input aria-label="Stock inicial" placeholder="Stock inicial" type="number" value={inventoryDraft.stock} onChange={(event) => setInventoryDraft((current) => ({ ...current, stock: Number(event.target.value) }))} />
+              <input aria-label="Precio de venta" placeholder="Valor de venta" type="number" value={inventoryDraft.price} onChange={(event) => setInventoryDraft((current) => ({ ...current, price: event.target.value }))} />
+              <input aria-label="Costo del producto" placeholder="Coste del producto" type="number" value={inventoryDraft.costPrice} onChange={(event) => setInventoryDraft((current) => ({ ...current, costPrice: event.target.value }))} />
+              <input aria-label="Stock inicial" placeholder="Stock" type="number" value={inventoryDraft.stock} onChange={(event) => setInventoryDraft((current) => ({ ...current, stock: event.target.value }))} />
             </div>
             <div className="mini-actions">
               <button className="action-button action-button--primary compact-action" onClick={() => void saveInventory()}>
@@ -829,7 +829,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       {activeSection === "reports" ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Reporte operativo</div>
+            <div className="section-title compact-title">Reporte mensual</div>
             <div className="report-grid">
               <div className="metric-tile compact-tile"><span>Ventas</span><strong>{formatCurrency(summary.salesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Ganancia</span><strong>{formatCurrency(summary.profitTotal)}</strong></div>
