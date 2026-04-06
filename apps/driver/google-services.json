@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "213505703707",
+    "project_id": "botix-e493b",
+    "storage_bucket": "botix-e493b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:213505703707:android:c59a979b4e241285e95dbe",
+        "android_client_info": {
+          "package_name": "cl.botix.driver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "213505703707-k2pcr2vqolreuiq2q2kavckegva4e8kc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-LdyWQPCa41SNjCRcsxQSBUnPLtvuMHQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "213505703707-k2pcr2vqolreuiq2q2kavckegva4e8kc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
