@@ -80,6 +80,7 @@ export const useAssignedOrders = (businessId?: string, courierId?: string) => {
     return onSnapshot(
       query(
         collection(firebaseClient.db, ordersPath(businessId)),
+        where("businessId", "==", businessId),
         where("assignedCourierId", "==", courierId)
       ),
       (snap) => {
