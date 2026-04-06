@@ -49,9 +49,12 @@ export interface CourierProfile {
 export interface OrderItem {
   id: string;
   name: string;
+  sku?: string;
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  costPrice?: number;
+  costSubtotal?: number;
 }
 
 export interface DeliveryOrder {
@@ -118,9 +121,23 @@ export interface InventoryItem {
   category: string;
   sku: string;
   price: number;
+  costPrice: number;
   stock: number;
   active: boolean;
   updatedAt: string;
+}
+
+export interface CounterSale {
+  id: string;
+  businessId: string;
+  saleNumber: number;
+  customerName?: string;
+  items: OrderItem[];
+  subtotal: number;
+  total: number;
+  paymentMethod: PaymentMethod;
+  createdBy: string;
+  createdAt: string;
 }
 
 export interface OrderDraftInput {

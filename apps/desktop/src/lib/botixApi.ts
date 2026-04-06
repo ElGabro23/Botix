@@ -14,14 +14,16 @@ import {
 import { httpsCallable } from "firebase/functions";
 import type {
   AppUser,
+  CounterSale,
   CourierProfile,
   Customer,
   DaySummary,
   DeliveryOrder,
   InventoryItem,
   LiveTracking,
-  OrderDraftInput,
-  OrderStatus
+  OrderItem,
+  OrderStatus,
+  PaymentMethod
 } from "@botix/shared";
 import { couriersPath, customersPath, liveTrackingPath, ordersPath } from "@botix/firebase-core";
 import { firebaseClient } from "./firebase";
@@ -32,7 +34,29 @@ const identityConverter = <T,>(): FirestoreDataConverter<T> => ({
 });
 
 const nowIso = () => new Date().toISOString();
+const todayStartIso = () => new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
 const customerIdFromPhone = (phone: string) => `customer-${phone.replace(/\D/g, "") || crypto.randomUUID()}`;
+
+type InventoryCatalogDocument = {
+  items: InventoryItem[];
+  updatedAt?: string;
+};
+
+type PointOfSaleLedgerDocument = {
+  sales: CounterSale[];
+  lastSaleNumber: number;
+  updatedAt?: string;
+};
+
+type CountersDocument = {
+  deliveryOrderSequence?: number;
+  lastSaleNumber?: number;
+};
+
+const inventoryDocRef = (businessId: string) =>
+  doc(firebaseClient.db, "businesses", businessId, "settings", "inventoryCatalog");
+const posLedgerRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "posLedger");
+const countersRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "counters");
 
 export const subscribeUserProfile = (
   userId: string,
@@ -46,7 +70,7 @@ export const subscribeOrders = (businessId: string, onData: (orders: DeliveryOrd
   const ordersQuery = query(
     collection(firebaseClient.db, ordersPath(businessId)).withConverter(identityConverter<DeliveryOrder>()),
     orderBy("createdAt", "desc"),
-    limit(30)
+    limit(40)
   );
 
   return onSnapshot(ordersQuery, (snap) => onData(snap.docs.map((docItem) => docItem.data())));
@@ -56,8 +80,8 @@ export const subscribeCustomers = (businessId: string, onData: (customers: Custo
   onSnapshot(
     query(
       collection(firebaseClient.db, customersPath(businessId)).withConverter(identityConverter<Customer>()),
-      orderBy("totalSpent", "desc"),
-      limit(8)
+      orderBy("name", "asc"),
+      limit(80)
     ),
     (snap) => onData(snap.docs.map((docItem) => docItem.data()))
   );
@@ -84,63 +108,247 @@ export const subscribeLiveTracking = (
   );
 };
 
-export const createOrder = async (user: AppUser, draft: OrderDraftInput) => {
-  const ordersRef = collection(firebaseClient.db, ordersPath(user.businessId));
-  const countersRef = doc(firebaseClient.db, "businesses", user.businessId, "settings", "counters");
+export const subscribeInventory = (
+  businessId: string,
+  onData: (items: InventoryItem[]) => void
+) =>
+  onSnapshot(
+    inventoryDocRef(businessId).withConverter(identityConverter<InventoryCatalogDocument>()),
+    (snap) => onData(snap.exists() ? snap.data().items ?? [] : [])
+  );
 
+export const subscribeCounterSales = (
+  businessId: string,
+  onData: (sales: CounterSale[]) => void
+) =>
+  onSnapshot(
+    posLedgerRef(businessId).withConverter(identityConverter<PointOfSaleLedgerDocument>()),
+    (snap) => onData(snap.exists() ? (snap.data().sales ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [])
+  );
+
+export const saveInventoryItem = async (businessId: string, item: Omit<InventoryItem, "updatedAt">) => {
   await runTransaction(firebaseClient.db, async (transaction) => {
-    const counterSnap = await transaction.get(countersRef);
-    const currentNumber = counterSnap.exists() ? counterSnap.data().deliveryOrderSequence ?? 1023 : 1023;
-    const nextNumber = currentNumber + 1;
-    const customerRef = doc(firebaseClient.db, customersPath(user.businessId), customerIdFromPhone(draft.customerPhone));
-    const orderRef = doc(ordersRef);
-    const customerSnap = await transaction.get(customerRef);
+    const snap = await transaction.get(inventoryDocRef(businessId));
+    const current = snap.exists() ? ((snap.data().items as InventoryItem[] | undefined) ?? []) : [];
+    const updatedItem: InventoryItem = { ...item, updatedAt: nowIso() };
+    const nextItems = [...current.filter((entry) => entry.id !== item.id), updatedItem].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
 
-    const items = draft.items.map((item) => ({
-      id: crypto.randomUUID(),
-      name: item.name,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      subtotal: item.quantity * item.unitPrice
+    transaction.set(
+      inventoryDocRef(businessId),
+      {
+        items: nextItems,
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+  });
+};
+
+export const importInventoryItems = async (
+  businessId: string,
+  items: Array<Omit<InventoryItem, "updatedAt">>
+) => {
+  await runTransaction(firebaseClient.db, async (transaction) => {
+    const snap = await transaction.get(inventoryDocRef(businessId));
+    const current = snap.exists() ? ((snap.data().items as InventoryItem[] | undefined) ?? []) : [];
+    const currentMap = new Map(current.map((item) => [item.sku, item]));
+    const normalized = items.map((item) => ({
+      ...item,
+      updatedAt: nowIso()
     }));
 
-    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const total = subtotal + draft.deliveryFee;
-    const timestamp = nowIso();
+    for (const item of normalized) {
+      currentMap.set(item.sku, item);
+    }
 
-    transaction.set(customerRef, {
-      businessId: user.businessId,
-      name: draft.customerName,
-      phone: draft.customerPhone,
-      address: draft.address,
-      totalOrders: (customerSnap.exists() ? customerSnap.data().totalOrders : 0) + 1,
-      totalSpent: (customerSnap.exists() ? customerSnap.data().totalSpent : 0) + total,
-      isCreditEnabled: customerSnap.exists() ? customerSnap.data().isCreditEnabled : false
-    }, { merge: true });
+    transaction.set(
+      inventoryDocRef(businessId),
+      {
+        items: [...currentMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+  });
+};
+
+export const createCustomerRecord = async (
+  businessId: string,
+  input: Pick<Customer, "name" | "phone" | "address" | "isCreditEnabled">
+) => {
+  const customerRef = doc(firebaseClient.db, customersPath(businessId), customerIdFromPhone(input.phone));
+  await runTransaction(firebaseClient.db, async (transaction) => {
+    const snap = await transaction.get(customerRef);
+    const current = snap.exists() ? snap.data() : null;
+
+    transaction.set(
+      customerRef,
+      {
+        businessId,
+        name: input.name,
+        phone: input.phone,
+        address: input.address,
+        isCreditEnabled: input.isCreditEnabled,
+        totalOrders: current?.totalOrders ?? 0,
+        totalSpent: current?.totalSpent ?? 0
+      },
+      { merge: true }
+    );
+  });
+};
+
+const normalizeOrderItems = (catalog: InventoryItem[], items: Array<{ inventoryId: string; quantity: number }>) =>
+  items
+    .map((entry) => {
+      const product = catalog.find((item) => item.id === entry.inventoryId);
+      if (!product || entry.quantity <= 0) return null;
+      const subtotal = product.price * entry.quantity;
+      const costSubtotal = product.costPrice * entry.quantity;
+
+      return {
+        id: crypto.randomUUID(),
+        sku: product.sku,
+        name: product.name,
+        quantity: entry.quantity,
+        unitPrice: product.price,
+        subtotal,
+        costPrice: product.costPrice,
+        costSubtotal
+      } satisfies OrderItem;
+    })
+    .filter(Boolean) as OrderItem[];
+
+export const createDeliveryOrder = async (
+  user: AppUser,
+  input: {
+    customerId: string;
+    deliveryFee: number;
+    paymentMethod: PaymentMethod;
+    notes?: string;
+    items: Array<{ inventoryId: string; quantity: number }>;
+  }
+) => {
+  await runTransaction(firebaseClient.db, async (transaction) => {
+    const customerRef = doc(firebaseClient.db, customersPath(user.businessId), input.customerId);
+    const orderRef = doc(collection(firebaseClient.db, ordersPath(user.businessId)));
+    const counterRef = countersRef(user.businessId);
+    const inventoryRef = inventoryDocRef(user.businessId);
+
+    const [customerSnap, counterSnap, inventorySnap] = await Promise.all([
+      transaction.get(customerRef),
+      transaction.get(counterRef),
+      transaction.get(inventoryRef)
+    ]);
+
+    if (!customerSnap.exists()) throw new Error("Cliente no encontrado.");
+
+    const customer = customerSnap.data() as Customer;
+    const counters = (counterSnap.exists() ? (counterSnap.data() as CountersDocument) : {}) ?? {};
+    const inventory = inventorySnap.exists()
+      ? (((inventorySnap.data() as InventoryCatalogDocument).items ?? []) as InventoryItem[])
+      : [];
+
+    const items = normalizeOrderItems(inventory, input.items);
+    if (!items.length) throw new Error("Selecciona productos validos para el pedido.");
+
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const total = subtotal + input.deliveryFee;
+    const timestamp = nowIso();
+    const nextNumber = (counters.deliveryOrderSequence ?? 1023) + 1;
 
     transaction.set(orderRef, {
       businessId: user.businessId,
       orderNumber: nextNumber,
-      customerId: customerRef.id,
-      customerName: draft.customerName,
-      customerPhone: draft.customerPhone,
-      address: draft.address,
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      address: customer.address,
       items,
       subtotal,
-      deliveryFee: draft.deliveryFee,
+      deliveryFee: input.deliveryFee,
       total,
-      paymentMethod: draft.paymentMethod,
+      paymentMethod: input.paymentMethod,
       status: "pending",
       createdBy: user.id,
       createdAt: timestamp,
       updatedAt: timestamp,
-      notes: draft.notes ?? ""
+      notes: input.notes ?? ""
     });
 
     transaction.set(
-      countersRef,
+      customerRef,
+      {
+        totalOrders: (customer.totalOrders ?? 0) + 1,
+        totalSpent: (customer.totalSpent ?? 0) + total
+      },
+      { merge: true }
+    );
+
+    transaction.set(
+      counterRef,
       {
         deliveryOrderSequence: nextNumber,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  });
+};
+
+export const registerCounterSale = async (
+  user: AppUser,
+  input: {
+    customerName?: string;
+    paymentMethod: PaymentMethod;
+    items: Array<{ inventoryId: string; quantity: number }>;
+  }
+) => {
+  await runTransaction(firebaseClient.db, async (transaction) => {
+    const [inventorySnap, ledgerSnap, counterSnap] = await Promise.all([
+      transaction.get(inventoryDocRef(user.businessId)),
+      transaction.get(posLedgerRef(user.businessId)),
+      transaction.get(countersRef(user.businessId))
+    ]);
+
+    const inventory = inventorySnap.exists()
+      ? (((inventorySnap.data() as InventoryCatalogDocument).items ?? []) as InventoryItem[])
+      : [];
+    const ledger = ledgerSnap.exists() ? ((ledgerSnap.data() as PointOfSaleLedgerDocument).sales ?? []) : [];
+    const counters = (counterSnap.exists() ? (counterSnap.data() as CountersDocument) : {}) ?? {};
+    const items = normalizeOrderItems(inventory, input.items);
+    if (!items.length) throw new Error("Selecciona productos para la venta.");
+
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const saleNumber = (counters.lastSaleNumber ?? 0) + 1;
+    const sale: CounterSale = {
+      id: crypto.randomUUID(),
+      businessId: user.businessId,
+      saleNumber,
+      customerName: input.customerName?.trim() || undefined,
+      items,
+      subtotal,
+      total: subtotal,
+      paymentMethod: input.paymentMethod,
+      createdBy: user.id,
+      createdAt: nowIso()
+    };
+
+    transaction.set(
+      posLedgerRef(user.businessId),
+      {
+        sales: [sale, ...ledger].slice(0, 400),
+        lastSaleNumber: saleNumber,
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+
+    transaction.set(
+      countersRef(user.businessId),
+      {
+        lastSaleNumber: saleNumber,
         updatedAt: serverTimestamp()
       },
       { merge: true }
@@ -181,34 +389,70 @@ export const assignCourier = async (
   ]);
 };
 
-export const subscribeDaySummary = (businessId: string, onData: (summary: DaySummary) => void) => {
-  const ordersQuery = query(
-    collection(firebaseClient.db, ordersPath(businessId)).withConverter(identityConverter<DeliveryOrder>()),
-    where("createdAt", ">=", new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
-  );
+export const subscribeDaySummary = (
+  businessId: string,
+  onData: (summary: DaySummary & { profitTotal: number; counterSalesTotal: number }) => void
+) => {
+  let deliveryOrders: DeliveryOrder[] = [];
+  let counterSales: CounterSale[] = [];
 
-  return onSnapshot(ordersQuery, (snap) => {
-    const orders = snap.docs.map((docItem) => docItem.data());
-    const summary = orders.reduce<DaySummary>(
-      (acc, order) => {
-        if (order.status !== "cancelled") {
-          acc.salesTotal += order.total;
-          acc.deliveryTotal += order.deliveryFee;
-          if (order.paymentMethod === "cash") acc.cashTotal += order.total;
-          if (order.paymentMethod === "card") acc.cardTotal += order.total;
-        }
+  const emit = () => {
+    const summary = {
+      salesTotal: 0,
+      cashTotal: 0,
+      cardTotal: 0,
+      deliveryTotal: 0,
+      openOrders: 0,
+      profitTotal: 0,
+      counterSalesTotal: 0
+    };
 
-        if (!["delivered", "cancelled"].includes(order.status)) {
-          acc.openOrders += 1;
-        }
+    for (const order of deliveryOrders) {
+      if (order.status !== "cancelled") {
+        summary.salesTotal += order.total;
+        summary.deliveryTotal += order.deliveryFee;
+        summary.profitTotal += order.items.reduce((sum, item) => sum + ((item.subtotal ?? 0) - (item.costSubtotal ?? 0)), 0);
+        if (order.paymentMethod === "cash") summary.cashTotal += order.total;
+        if (order.paymentMethod === "card") summary.cardTotal += order.total;
+      }
+      if (!["delivered", "cancelled"].includes(order.status)) summary.openOrders += 1;
+    }
 
-        return acc;
-      },
-      { salesTotal: 0, cashTotal: 0, cardTotal: 0, deliveryTotal: 0, openOrders: 0 }
-    );
+    for (const sale of counterSales) {
+      summary.salesTotal += sale.total;
+      summary.counterSalesTotal += sale.total;
+      summary.profitTotal += sale.items.reduce((sum, item) => sum + ((item.subtotal ?? 0) - (item.costSubtotal ?? 0)), 0);
+      if (sale.paymentMethod === "cash") summary.cashTotal += sale.total;
+      if (sale.paymentMethod === "card") summary.cardTotal += sale.total;
+    }
 
     onData(summary);
-  });
+  };
+
+  const unsubscribeOrders = onSnapshot(
+    query(
+      collection(firebaseClient.db, ordersPath(businessId)).withConverter(identityConverter<DeliveryOrder>()),
+      where("createdAt", ">=", todayStartIso())
+    ),
+    (snap) => {
+      deliveryOrders = snap.docs.map((docItem) => docItem.data());
+      emit();
+    }
+  );
+
+  const unsubscribeSales = onSnapshot(
+    posLedgerRef(businessId).withConverter(identityConverter<PointOfSaleLedgerDocument>()),
+    (snap) => {
+      const allSales = snap.exists() ? (snap.data().sales ?? []) : [];
+      counterSales = allSales.filter((sale) => sale.createdAt >= todayStartIso());
+      emit();
+    }
+  );
+
+  return () => {
+    unsubscribeOrders();
+    unsubscribeSales();
+  };
 };
 
 export const createTrackingLink = async (businessId: string, orderId: string) => {
@@ -221,40 +465,20 @@ export const createTrackingLink = async (businessId: string, orderId: string) =>
   return result.data.token;
 };
 
-type InventoryCatalogDocument = {
-  items: InventoryItem[];
-  updatedAt?: string;
-};
-
-export const subscribeInventory = (
+export const createCourierAccount = async (
   businessId: string,
-  onData: (items: InventoryItem[]) => void
-) =>
-  onSnapshot(
-    doc(firebaseClient.db, "businesses", businessId, "settings", "inventoryCatalog").withConverter(
-      identityConverter<InventoryCatalogDocument>()
-    ),
-    (snap) => onData(snap.exists() ? snap.data().items ?? [] : [])
-  );
+  input: {
+    displayName: string;
+    email: string;
+    phone: string;
+    password: string;
+  }
+) => {
+  const callable = httpsCallable<
+    { businessId: string; displayName: string; email: string; phone: string; password: string },
+    { uid: string }
+  >(firebaseClient.functions, "createCourierAccount");
 
-export const saveInventoryItem = async (businessId: string, item: Omit<InventoryItem, "updatedAt">) => {
-  const inventoryRef = doc(firebaseClient.db, "businesses", businessId, "settings", "inventoryCatalog");
-
-  await runTransaction(firebaseClient.db, async (transaction) => {
-    const snap = await transaction.get(inventoryRef);
-    const current = snap.exists() ? ((snap.data().items as InventoryItem[] | undefined) ?? []) : [];
-    const updatedItem: InventoryItem = { ...item, updatedAt: nowIso() };
-    const nextItems = [...current.filter((entry) => entry.id !== item.id), updatedItem].sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-
-    transaction.set(
-      inventoryRef,
-      {
-        items: nextItems,
-        updatedAt: nowIso()
-      },
-      { merge: true }
-    );
-  });
+  const result = await callable({ businessId, ...input });
+  return result.data.uid;
 };

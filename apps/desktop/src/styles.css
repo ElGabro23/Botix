@@ -97,6 +97,10 @@ input {
   padding: 20px 28px 28px;
 }
 
+.compact-shell {
+  padding: 12px 14px 16px;
+}
+
 .topbar {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -110,6 +114,12 @@ input {
   backdrop-filter: blur(14px);
 }
 
+.compact-topbar {
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 20px;
+}
+
 .topbar h1,
 .login-card h1 {
   margin: 0;
@@ -120,6 +130,10 @@ input {
 .topbar span,
 .login-card p {
   color: #6b7892;
+}
+
+.compact-topbar h1 {
+  font-size: 22px;
 }
 
 .topnav {
@@ -189,6 +203,12 @@ input {
   border: 1px solid rgba(226, 233, 248, 0.95);
 }
 
+.compact-card {
+  padding: 16px;
+  border-radius: 20px;
+  box-shadow: 0 10px 22px rgba(112, 132, 179, 0.08);
+}
+
 .section-title,
 .inline-title {
   font-size: 30px;
@@ -200,6 +220,15 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.compact-title {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+.compact-title--spaced {
+  margin-top: 14px;
 }
 
 .action-button,
@@ -216,6 +245,16 @@ input {
   font-size: 18px;
   font-weight: 700;
   margin-bottom: 12px;
+}
+
+.compact-action {
+  padding: 12px 14px;
+  font-size: 14px;
+  margin-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .action-button--light {
@@ -262,6 +301,72 @@ input {
   border: 1px solid #c9dafd;
 }
 
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #d7dff0;
+  border-radius: 12px;
+  background: #fbfcff;
+  margin-bottom: 10px;
+}
+
+.inline-field input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  outline: 0;
+}
+
+.compact-grid {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.compact-grid input,
+.compact-grid select,
+select {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid #d7dff0;
+  background: #fbfcff;
+  font: inherit;
+}
+
+.search-results {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ecf0fb;
+  border-radius: 14px;
+  background: #f9fbff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-result div {
+  display: grid;
+  gap: 2px;
+}
+
+.search-result span {
+  color: #6b7892;
+  font-size: 12px;
+}
+
 .metric-row,
 .detail-line {
   display: flex;
@@ -279,6 +384,11 @@ input {
 .stack-list {
   display: grid;
   gap: 12px;
+}
+
+.compact-stack {
+  max-height: 320px;
+  overflow: auto;
 }
 
 .list-row,
@@ -407,6 +517,102 @@ input {
   word-break: break-all;
 }
 
+.compact-order {
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.compact-table {
+  display: grid;
+  gap: 8px;
+}
+
+.compact-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #e9eefb;
+  background: #fbfcff;
+}
+
+.compact-row div,
+.compact-row__meta {
+  display: grid;
+  gap: 3px;
+}
+
+.compact-row span,
+.compact-row__meta span {
+  color: #6b7892;
+  font-size: 12px;
+}
+
+.qty-input {
+  width: 72px;
+  padding: 8px 10px;
+  border: 1px solid #d7dff0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 0;
+  color: #50617b;
+  font-weight: 700;
+}
+
+.mini-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.compact-ghost {
+  width: 100%;
+}
+
+.danger-outline {
+  color: #d35b5b;
+  background: #fff2f2;
+}
+
+.compact-details .detail-line {
+  padding: 10px 0;
+}
+
+.compact-tracking {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #5f6d87;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compact-tile {
+  padding: 14px;
+}
+
+.compact-tile strong {
+  font-size: 20px;
+}
+
 .inventory-form {
   margin-bottom: 12px;
 }
@@ -472,5 +678,9 @@ input {
 
   .inventory-row {
     grid-template-columns: 1fr;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }

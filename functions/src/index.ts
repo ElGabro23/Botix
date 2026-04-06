@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
@@ -8,6 +9,7 @@ import crypto from "node:crypto";
 initializeApp();
 
 const db = getFirestore();
+const adminAuth = getAuth();
 
 export const createTrackingSession = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesion.");
@@ -150,3 +152,57 @@ export const syncCourierLoad = onDocumentUpdated(
     }
   }
 );
+
+export const createCourierAccount = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesion.");
+
+  const actorSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const actor = actorSnap.data();
+  if (!actor || actor.role !== "admin") throw new HttpsError("permission-denied", "Solo admin puede crear repartidores.");
+
+  const { businessId, displayName, email, phone, password } = request.data as {
+    businessId?: string;
+    displayName?: string;
+    email?: string;
+    phone?: string;
+    password?: string;
+  };
+
+  if (!businessId || !displayName || !email || !phone || !password) {
+    throw new HttpsError("invalid-argument", "Faltan datos del repartidor.");
+  }
+
+  if (actor.businessId !== businessId) {
+    throw new HttpsError("permission-denied", "No puedes crear repartidores para otro negocio.");
+  }
+
+  const userRecord = await adminAuth.createUser({
+    email,
+    password,
+    displayName
+  });
+
+  const timestamp = new Date().toISOString();
+
+  await db.doc(`users/${userRecord.uid}`).set({
+    active: true,
+    businessId,
+    displayName,
+    email,
+    phone,
+    role: "courier"
+  });
+
+  await db.doc(`businesses/${businessId}/couriers/${userRecord.uid}`).set({
+    businessId,
+    userId: userRecord.uid,
+    displayName,
+    phone,
+    activeOrderIds: [],
+    deliveredTotal: 0,
+    status: "available",
+    lastSeenAt: timestamp
+  });
+
+  return { uid: userRecord.uid };
+});
