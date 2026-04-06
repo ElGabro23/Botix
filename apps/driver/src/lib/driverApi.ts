@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  arrayUnion,
   collection,
   doc,
   onSnapshot,
@@ -10,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import type { AppUser, BusinessProfile, DeliveryOrder } from "@botix/shared";
 import { liveTrackingPath, ordersPath } from "@botix/firebase-core";
 import { firebaseClient } from "./firebase";
@@ -162,6 +164,36 @@ export const updateDriverOrderStatus = async (
     status,
     updatedAt: new Date().toISOString()
   });
+};
+
+export const registerDriverPushToken = async (userId: string) => {
+  const permissions = await Notifications.getPermissionsAsync();
+  let finalStatus = permissions.status;
+
+  if (finalStatus !== "granted") {
+    const requested = await Notifications.requestPermissionsAsync();
+    finalStatus = requested.status;
+  }
+
+  if (finalStatus !== "granted") {
+    throw new Error("Permiso de notificaciones no concedido.");
+  }
+
+  await Notifications.setNotificationChannelAsync("orders", {
+    name: "Pedidos BOTIX",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250]
+  });
+
+  const devicePushToken = await Notifications.getDevicePushTokenAsync();
+  const token = typeof devicePushToken.data === "string" ? devicePushToken.data : "";
+  if (!token) throw new Error("No fue posible obtener el token push del dispositivo.");
+
+  await updateDoc(doc(firebaseClient.db, "users", userId), {
+    notificationTokens: arrayUnion(token)
+  });
+
+  return token;
 };
 
 export const startLocationTracking = async (businessId: string, orderId: string, courierId: string) => {

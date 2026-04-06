@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Linking from "expo-linking";
 import type { LocationSubscription } from "expo-location";
 import type { DeliveryOrder } from "@botix/shared";
 import { formatCurrency, orderStatusLabel } from "@botix/shared";
 import {
+  registerDriverPushToken,
   startLocationTracking,
   stopLocationTracking,
   useDriverDayEarnings,
@@ -20,6 +21,7 @@ export default function App() {
   const trackingRef = useRef<LocationSubscription | null>(null);
   const [email, setEmail] = useState("driver@botix.cl");
   const [password, setPassword] = useState("Botix123!");
+  const [pushNotice, setPushNotice] = useState("");
 
   if (session.loading) {
     return (
@@ -82,6 +84,13 @@ export default function App() {
     );
   }
 
+  useEffect(() => {
+    if (!session.user) return;
+    void registerDriverPushToken(session.user.id)
+      .then(() => setPushNotice("Notificaciones activadas para nuevos pedidos."))
+      .catch((error) => setPushNotice(error instanceof Error ? error.message : "No fue posible activar notificaciones."));
+  }, [session.user]);
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -98,6 +107,7 @@ export default function App() {
           <Text style={styles.earningsLabel}>Ganancia del dia</Text>
           <Text style={styles.earningsValue}>{formatCurrency(dayEarnings)}</Text>
         </View>
+        {pushNotice ? <Text style={styles.infoText}>{pushNotice}</Text> : null}
         {ordersError ? <Text style={styles.errorText}>{ordersError}</Text> : null}
         {!orders.length ? (
           <View style={styles.emptyCard}>
@@ -374,5 +384,10 @@ const styles = StyleSheet.create({
     color: "#d14343",
     marginTop: 12,
     lineHeight: 20
+  },
+  infoText: {
+    color: "#3559df",
+    lineHeight: 20,
+    marginBottom: 4
   }
 });

@@ -104,7 +104,7 @@ export const notifyCourierOnAssignment = onDocumentUpdated(
     const tokens = userSnap.data()?.notificationTokens ?? [];
     if (!tokens.length) return;
 
-    await getMessaging().sendEachForMulticast({
+    const response = await getMessaging().sendEachForMulticast({
       tokens,
       notification: {
         title: "Nuevo pedido asignado",
@@ -115,6 +115,16 @@ export const notifyCourierOnAssignment = onDocumentUpdated(
         businessId: event.params.businessId
       }
     });
+
+    const invalidTokens = response.responses
+      .map((result, index) => (!result.success ? tokens[index] : null))
+      .filter(Boolean);
+
+    if (invalidTokens.length) {
+      await db.doc(`users/${after.assignedCourierId}`).set({
+        notificationTokens: FieldValue.arrayRemove(...invalidTokens)
+      }, { merge: true });
+    }
   }
 );
 
