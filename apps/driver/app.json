@@ -4,20 +4,11 @@
     "slug": "botix-driver",
     "scheme": "botix-driver",
     "version": "1.0.0",
+    "newArchEnabled": false,
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "plugins": [
-      "expo-location",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "2.0.21"
-          }
-        }
-      ]
-    ],
+    "plugins": ["expo-location"],
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
