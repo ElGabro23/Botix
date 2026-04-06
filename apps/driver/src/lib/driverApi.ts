@@ -3,7 +3,6 @@ import {
   collection,
   doc,
   onSnapshot,
-  orderBy,
   query,
   setDoc,
   updateDoc,
@@ -18,6 +17,7 @@ import { firebaseClient } from "./firebase";
 export const useDriverSession = () => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let unsubscribeProfile = () => undefined;
@@ -25,14 +25,23 @@ export const useDriverSession = () => {
     const unsubscribe = onAuthStateChanged(firebaseClient.auth, (authUser) => {
       if (!authUser) {
         setUser(null);
+        setError("");
         setLoading(false);
         return;
       }
 
-      unsubscribeProfile = onSnapshot(doc(firebaseClient.db, "users", authUser.uid), (snap) => {
-        setUser(snap.exists() ? ({ id: snap.id, ...snap.data() } as AppUser) : null);
-        setLoading(false);
-      });
+      unsubscribeProfile = onSnapshot(
+        doc(firebaseClient.db, "users", authUser.uid),
+        (snap) => {
+          setUser(snap.exists() ? ({ id: snap.id, ...snap.data() } as AppUser) : null);
+          setError("");
+          setLoading(false);
+        },
+        (snapshotError) => {
+          setError(snapshotError.message);
+          setLoading(false);
+        }
+      );
     });
 
     return () => {
@@ -44,32 +53,50 @@ export const useDriverSession = () => {
   return {
     user,
     loading,
-    signIn: (email: string, password: string) =>
-      signInWithEmailAndPassword(firebaseClient.auth, email, password),
+    error,
+    signIn: async (email: string, password: string) => {
+      try {
+        setError("");
+        await signInWithEmailAndPassword(firebaseClient.auth, email, password);
+      } catch (signInError) {
+        setError(signInError instanceof Error ? signInError.message : "No fue posible iniciar sesion.");
+      }
+    },
     signOut: () => signOut(firebaseClient.auth)
   };
 };
 
 export const useAssignedOrders = (businessId?: string, courierId?: string) => {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!businessId || !courierId) return;
+    if (!businessId || !courierId) {
+      setOrders([]);
+      setError("");
+      return;
+    }
 
     return onSnapshot(
       query(
         collection(firebaseClient.db, ordersPath(businessId)),
-        where("assignedCourierId", "==", courierId),
-        where("status", "in", ["assigned", "en_route", "incident"]),
-        orderBy("updatedAt", "desc")
+        where("assignedCourierId", "==", courierId)
       ),
       (snap) => {
-        setOrders(snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }) as DeliveryOrder));
+        const nextOrders = snap.docs
+          .map((docItem) => ({ id: docItem.id, ...docItem.data() }) as DeliveryOrder)
+          .filter((order) => ["assigned", "en_route", "incident"].includes(order.status))
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        setOrders(nextOrders);
+        setError("");
+      },
+      (snapshotError) => {
+        setError(snapshotError.message);
       }
     );
   }, [businessId, courierId]);
 
-  return orders;
+  return { orders, error };
 };
 
 export const updateDriverOrderStatus = async (

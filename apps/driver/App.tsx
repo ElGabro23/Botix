@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Linking from "expo-linking";
 import type { LocationSubscription } from "expo-location";
 import type { DeliveryOrder } from "@botix/shared";
@@ -14,7 +14,7 @@ import {
 
 export default function App() {
   const session = useDriverSession();
-  const orders = useAssignedOrders(session.user?.businessId, session.user?.id);
+  const { orders, error: ordersError } = useAssignedOrders(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
   const [email, setEmail] = useState("driver@botix.cl");
   const [password, setPassword] = useState("Botix123!");
@@ -30,21 +30,33 @@ export default function App() {
   if (!session.user) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loginCard}>
-          <Text style={styles.title}>BOTIX Driver</Text>
-          <Text style={styles.subtitle}>Ingreso rapido para repartidores</Text>
-          <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="Correo" />
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Contrasena"
-            secureTextEntry
-          />
-          <Pressable style={styles.primaryButton} onPress={() => void session.signIn(email, password)}>
-            <Text style={styles.primaryButtonText}>Ingresar</Text>
-          </Pressable>
-        </View>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.loginScreen}>
+          <View style={styles.loginCard}>
+            <Text style={styles.title}>BOTIX Driver</Text>
+            <Text style={styles.subtitle}>Ingreso rapido para repartidores</Text>
+            {session.error ? <Text style={styles.errorText}>{session.error}</Text> : null}
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Correo"
+              placeholderTextColor="#8a97b2"
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Contrasena"
+              placeholderTextColor="#8a97b2"
+              secureTextEntry
+            />
+            <Pressable style={styles.primaryButton} onPress={() => void session.signIn(email, password)}>
+              <Text style={styles.primaryButtonText}>Ingresar</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -61,6 +73,13 @@ export default function App() {
             <Text style={styles.secondaryButtonText}>Salir</Text>
           </Pressable>
         </View>
+        {ordersError ? <Text style={styles.errorText}>{ordersError}</Text> : null}
+        {!orders.length ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>Sin pedidos asignados</Text>
+            <Text style={styles.emptyText}>Cuando el local te asigne un pedido, aparecera aqui automaticamente.</Text>
+          </View>
+        ) : null}
 
         {orders.map((order) => (
           <OrderCard
@@ -156,14 +175,19 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 16
   },
+  loginScreen: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 18
+  },
   loginCard: {
-    margin: 18,
     padding: 22,
     backgroundColor: "#fff",
     borderRadius: 24,
     shadowColor: "#7891c4",
     shadowOpacity: 0.12,
-    shadowRadius: 24
+    shadowRadius: 24,
+    elevation: 4
   },
   header: {
     flexDirection: "row",
@@ -182,16 +206,23 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: "#f7f9ff",
+    borderWidth: 1,
+    borderColor: "#d7e1f7",
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginTop: 14
+    marginTop: 14,
+    color: "#21324f"
   },
   orderCard: {
     backgroundColor: "#fff",
     borderRadius: 24,
     padding: 18,
-    gap: 10
+    gap: 10,
+    shadowColor: "#7891c4",
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 3
   },
   orderTop: {
     flexDirection: "row",
@@ -264,5 +295,27 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: "#3559df",
     fontWeight: "700"
+  },
+  emptyCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 22,
+    alignItems: "center",
+    gap: 8
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#21324f"
+  },
+  emptyText: {
+    color: "#6b7992",
+    textAlign: "center",
+    lineHeight: 20
+  },
+  errorText: {
+    color: "#d14343",
+    marginTop: 12,
+    lineHeight: 20
   }
 });

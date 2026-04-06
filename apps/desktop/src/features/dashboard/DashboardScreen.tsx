@@ -81,6 +81,7 @@ const initialCustomerDraft = {
   address: "",
   isCreditEnabled: false
 };
+const newCustomerOption = "__new_customer__";
 
 const initialCourierDraft = {
   displayName: "",
@@ -140,11 +141,13 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
   const [orderSearch, setOrderSearch] = useState("");
   const [orderCart, setOrderCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedOrderCourierId, setSelectedOrderCourierId] = useState("");
   const [deliveryFee, setDeliveryFee] = useState("");
   const [orderPaymentMethod, setOrderPaymentMethod] = useState<PaymentMethod>("cash");
   const [orderNotes, setOrderNotes] = useState("");
   const [inventoryDraft, setInventoryDraft] = useState(initialInventoryDraft);
   const [customerDraft, setCustomerDraft] = useState(initialCustomerDraft);
+  const [orderCustomerDraft, setOrderCustomerDraft] = useState(initialCustomerDraft);
   const [courierDraft, setCourierDraft] = useState(initialCourierDraft);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isAdmin = user.role === "admin";
@@ -203,6 +206,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     () => orderSubtotal - sumCost(activeInventory, orderCart),
     [activeInventory, orderCart, orderSubtotal]
   );
+  const isNewOrderCustomer = selectedCustomerId === newCustomerOption;
 
   const addCartItem = (cart: CartItem[], inventoryId: string) => {
     const current = cart.find((item) => item.inventoryId === inventoryId);
@@ -298,17 +302,23 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
 
   const saveDeliveryOrder = async () => {
     if (!selectedCustomerId) {
-      setNotice("Selecciona un cliente registrado para crear el pedido.");
+      setNotice("Selecciona un cliente o crea uno nuevo para el pedido.");
       return;
     }
     if (!orderCart.length) {
       setNotice("Agrega productos al pedido.");
       return;
     }
+    if (isNewOrderCustomer && (!orderCustomerDraft.name || !orderCustomerDraft.phone || !orderCustomerDraft.address)) {
+      setNotice("Completa nombre, telefono y direccion del cliente nuevo.");
+      return;
+    }
     setSaving("delivery-order");
     try {
       await createDeliveryOrder(user, {
-        customerId: selectedCustomerId,
+        customerId: isNewOrderCustomer ? undefined : selectedCustomerId,
+        customer: isNewOrderCustomer ? orderCustomerDraft : undefined,
+        assignedCourierId: selectedOrderCourierId || undefined,
         deliveryFee: normalizedDeliveryFee,
         paymentMethod: orderPaymentMethod,
         notes: orderNotes,
@@ -318,6 +328,9 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
       setOrderSearch("");
       setOrderNotes("");
       setDeliveryFee("");
+      setSelectedOrderCourierId("");
+      setSelectedCustomerId("");
+      setOrderCustomerDraft(initialCustomerDraft);
       setNotice("Pedido delivery creado correctamente.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No fue posible crear el pedido.");
@@ -586,12 +599,33 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
             <div className="section-title compact-title">Crear pedido delivery</div>
             <select value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}>
               <option value="">Selecciona cliente registrado</option>
+              <option value={newCustomerOption}>Crear cliente nuevo</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name} | {customer.phone}
                 </option>
               ))}
             </select>
+            {isNewOrderCustomer ? (
+              <div className="field-grid compact-grid">
+                <input
+                  placeholder="Nombre del cliente"
+                  value={orderCustomerDraft.name}
+                  onChange={(event) => setOrderCustomerDraft((current) => ({ ...current, name: event.target.value }))}
+                />
+                <input
+                  placeholder="Telefono del cliente"
+                  value={orderCustomerDraft.phone}
+                  onChange={(event) => setOrderCustomerDraft((current) => ({ ...current, phone: event.target.value }))}
+                />
+                <input
+                  className="field-span"
+                  placeholder="Direccion del cliente"
+                  value={orderCustomerDraft.address}
+                  onChange={(event) => setOrderCustomerDraft((current) => ({ ...current, address: event.target.value }))}
+                />
+              </div>
+            ) : null}
             <div className="inline-field">
               <Search size={15} />
               <input
@@ -607,6 +641,14 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
             </div>
             {renderProductResults(orderResults, (productId) => setOrderCart(addCartItem(orderCart, productId)))}
             <div className="field-grid compact-grid">
+              <select value={selectedOrderCourierId} onChange={(event) => setSelectedOrderCourierId(event.target.value)}>
+                <option value="">Asignar repartidor despues</option>
+                {couriers.map((courier) => (
+                  <option key={courier.id} value={courier.id}>
+                    {courier.displayName}
+                  </option>
+                ))}
+              </select>
               <input
                 placeholder="Coste Delivery"
                 type="number"

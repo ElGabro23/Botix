@@ -1,3 +1,4 @@
+import { deleteApp, initializeApp } from "firebase/app";
 import {
   collection,
   doc,
@@ -11,6 +12,8 @@ import {
   where,
   type FirestoreDataConverter
 } from "firebase/firestore";
+import { createUserWithEmailAndPassword, getAuth, signOut as signOutAuth, updateProfile } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import type {
   AppUser,
@@ -253,7 +256,9 @@ const normalizeOrderItems = (catalog: InventoryItem[], items: Array<{ inventoryI
 export const createDeliveryOrder = async (
   user: AppUser,
   input: {
-    customerId: string;
+    customerId?: string;
+    customer?: Pick<Customer, "name" | "phone" | "address" | "isCreditEnabled">;
+    assignedCourierId?: string;
     deliveryFee: number;
     paymentMethod: PaymentMethod;
     notes?: string;
@@ -261,24 +266,47 @@ export const createDeliveryOrder = async (
   }
 ) => {
   await runTransaction(firebaseClient.db, async (transaction) => {
-    const customerRef = doc(firebaseClient.db, customersPath(user.businessId), input.customerId);
     const orderRef = doc(collection(firebaseClient.db, ordersPath(user.businessId)));
     const counterRef = countersRef(user.businessId);
     const inventoryRef = inventoryDocRef(user.businessId);
+    const customerRef = input.customerId
+      ? doc(firebaseClient.db, customersPath(user.businessId), input.customerId)
+      : doc(
+          firebaseClient.db,
+          customersPath(user.businessId),
+          customerIdFromPhone(input.customer?.phone ?? "")
+        );
+    const courierRef = input.assignedCourierId
+      ? doc(firebaseClient.db, couriersPath(user.businessId), input.assignedCourierId)
+      : null;
 
-    const [customerSnap, counterSnap, inventorySnap] = await Promise.all([
+    const [customerSnap, counterSnap, inventorySnap, courierSnap] = await Promise.all([
       transaction.get(customerRef),
       transaction.get(counterRef),
-      transaction.get(inventoryRef)
+      transaction.get(inventoryRef),
+      courierRef ? transaction.get(courierRef) : Promise.resolve(null)
     ]);
 
-    if (!customerSnap.exists()) throw new Error("Cliente no encontrado.");
+    if (!customerSnap.exists() && !input.customer) throw new Error("Cliente no encontrado.");
+    if (courierRef && (!courierSnap || !courierSnap.exists())) throw new Error("Repartidor no encontrado.");
 
-    const customer = customerSnap.data() as Customer;
+    const customer = customerSnap.exists()
+      ? (customerSnap.data() as Customer)
+      : ({
+          id: customerRef.id,
+          businessId: user.businessId,
+          name: input.customer?.name ?? "",
+          phone: input.customer?.phone ?? "",
+          address: input.customer?.address ?? "",
+          isCreditEnabled: input.customer?.isCreditEnabled ?? false,
+          totalOrders: 0,
+          totalSpent: 0
+        } satisfies Customer);
     const counters = (counterSnap.exists() ? (counterSnap.data() as CountersDocument) : {}) ?? {};
     const inventory = inventorySnap.exists()
       ? (((inventorySnap.data() as InventoryCatalogDocument).items ?? []) as InventoryItem[])
       : [];
+    const courier = courierSnap?.exists() ? (courierSnap.data() as CourierProfile) : null;
 
     const items = normalizeOrderItems(inventory, input.items);
     if (!items.length) throw new Error("Selecciona productos validos para el pedido.");
@@ -301,7 +329,9 @@ export const createDeliveryOrder = async (
       deliveryFee: input.deliveryFee,
       total,
       paymentMethod: input.paymentMethod,
-      status: "pending",
+      status: courier ? "assigned" : "pending",
+      assignedCourierId: courier?.id,
+      assignedCourierName: courier?.displayName,
       createdBy: user.id,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -325,6 +355,18 @@ export const createDeliveryOrder = async (
       },
       { merge: true }
     );
+
+    if (courierRef && courier) {
+      transaction.set(
+        courierRef,
+        {
+          activeOrderIds: [...new Set([...(courier.activeOrderIds ?? []), orderRef.id])],
+          status: "delivering",
+          lastSeenAt: timestamp
+        },
+        { merge: true }
+      );
+    }
 
     transaction.set(
       inventoryRef,
@@ -525,11 +567,44 @@ export const createCourierAccount = async (
     password: string;
   }
 ) => {
-  const callable = httpsCallable<
-    { businessId: string; displayName: string; email: string; phone: string; password: string },
-    { uid: string }
-  >(firebaseClient.functions, "createCourierAccount");
+  const secondaryApp = initializeApp(firebaseClient.app.options, `courier-${crypto.randomUUID()}`);
+  const secondaryAuth = getAuth(secondaryApp);
+  const secondaryDb = getFirestore(secondaryApp);
 
-  const result = await callable({ businessId, ...input });
-  return result.data.uid;
+  try {
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, input.email, input.password);
+    await updateProfile(credential.user, { displayName: input.displayName });
+    const uid = credential.user.uid;
+
+    await runTransaction(firebaseClient.db, async (transaction) => {
+      transaction.set(doc(firebaseClient.db, couriersPath(businessId), uid), {
+        businessId,
+        userId: uid,
+        displayName: input.displayName,
+        phone: input.phone,
+        activeOrderIds: [],
+        deliveredTotal: 0,
+        status: "available",
+        lastSeenAt: nowIso()
+      });
+    });
+
+    await runTransaction(secondaryDb, async (transaction) => {
+      transaction.set(doc(secondaryDb, "users", uid), {
+        active: true,
+        businessId,
+        displayName: input.displayName,
+        email: input.email,
+        phone: input.phone,
+        role: "courier"
+      });
+    });
+
+    await signOutAuth(secondaryAuth);
+    await deleteApp(secondaryApp);
+    return uid;
+  } catch (error) {
+    await deleteApp(secondaryApp);
+    throw error;
+  }
 };
