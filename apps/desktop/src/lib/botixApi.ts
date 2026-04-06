@@ -16,6 +16,7 @@ import { createUserWithEmailAndPassword, getAuth, signOut as signOutAuth, update
 import { getFirestore } from "firebase/firestore";
 import type {
   AppUser,
+  BusinessProfile,
   CounterSale,
   CourierProfile,
   Customer,
@@ -90,6 +91,22 @@ const inventoryDocRef = (businessId: string) =>
 const posLedgerRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "posLedger");
 const countersRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "counters");
 const trackingSessionRef = (token: string) => doc(firebaseClient.db, "trackingSessions", token);
+const businessRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId);
+
+const normalizeBusinessProfile = (businessId: string, value?: Partial<BusinessProfile> | null): BusinessProfile => ({
+  id: businessId,
+  businessId,
+  businessName: value?.businessName ?? businessId,
+  subscriptionStatus: value?.subscriptionStatus ?? "active",
+  accessEnabled: value?.accessEnabled ?? true,
+  plan: value?.plan ?? "standard",
+  monthlyPrice: value?.monthlyPrice ?? 0,
+  currentPeriodEnd: value?.currentPeriodEnd,
+  graceUntil: value?.graceUntil,
+  billingContactEmail: value?.billingContactEmail,
+  billingNote: value?.billingNote,
+  supportPhone: value?.supportPhone
+});
 
 export const subscribeUserProfile = (
   userId: string,
@@ -98,6 +115,27 @@ export const subscribeUserProfile = (
   onSnapshot(doc(firebaseClient.db, "users", userId).withConverter(identityConverter<AppUser>()), (snap) =>
     onData(snap.exists() ? snap.data() : null)
   );
+
+export const subscribeBusinessProfile = (businessId: string, onData: (business: BusinessProfile | null) => void) =>
+  onSnapshot(businessRef(businessId).withConverter(identityConverter<BusinessProfile>()), (snap) =>
+    onData(snap.exists() ? normalizeBusinessProfile(snap.id, snap.data()) : null)
+  );
+
+export const subscribeBusinesses = (onData: (businesses: BusinessProfile[]) => void) =>
+  onSnapshot(
+    query(collection(firebaseClient.db, "businesses").withConverter(identityConverter<BusinessProfile>()), orderBy("businessName", "asc")),
+    (snap) => onData(snap.docs.map((docItem) => normalizeBusinessProfile(docItem.id, docItem.data())))
+  );
+
+export const updateBusinessSubscription = async (
+  businessId: string,
+  patch: Partial<Pick<BusinessProfile, "subscriptionStatus" | "accessEnabled" | "plan" | "monthlyPrice" | "currentPeriodEnd" | "graceUntil" | "billingContactEmail" | "billingNote">>
+) => {
+  await updateDoc(businessRef(businessId), {
+    ...withoutUndefined(patch as Record<string, unknown>),
+    updatedAt: nowIso()
+  });
+};
 
 export const subscribeOrders = (businessId: string, onData: (orders: DeliveryOrder[]) => void) => {
   const ordersQuery = query(

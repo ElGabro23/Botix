@@ -1,4 +1,5 @@
-export type UserRole = "admin" | "cashier" | "courier";
+export type UserRole = "superadmin" | "admin" | "cashier" | "courier";
+export type SubscriptionStatus = "active" | "overdue" | "suspended" | "cancelled";
 
 export type OrderStatus =
   | "pending"
@@ -20,6 +21,21 @@ export interface AppUser {
   phone?: string;
   active: boolean;
   notificationTokens?: string[];
+}
+
+export interface BusinessProfile {
+  id: string;
+  businessId: string;
+  businessName: string;
+  subscriptionStatus: SubscriptionStatus;
+  accessEnabled: boolean;
+  plan?: string;
+  monthlyPrice?: number;
+  currentPeriodEnd?: string;
+  graceUntil?: string;
+  billingContactEmail?: string;
+  billingNote?: string;
+  supportPhone?: string;
 }
 
 export interface Customer {

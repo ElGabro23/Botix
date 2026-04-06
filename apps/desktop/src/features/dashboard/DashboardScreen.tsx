@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type {
   AppUser,
+  BusinessProfile,
   CounterSale,
   CourierProfile,
   Customer,
@@ -20,7 +21,8 @@ import type {
   DeliveryOrder,
   InventoryItem,
   LiveTracking,
-  PaymentMethod
+  PaymentMethod,
+  SubscriptionStatus
 } from "@botix/shared";
 import { formatCompactDateTime, formatCurrency, orderStatusColor, orderStatusLabel } from "@botix/shared";
 import {
@@ -32,6 +34,7 @@ import {
   importInventoryItems,
   registerCounterSale,
   saveInventoryItem,
+  subscribeBusinesses,
   subscribeCounterSales,
   subscribeCouriers,
   subscribeCustomers,
@@ -39,11 +42,12 @@ import {
   subscribeInventory,
   subscribeLiveTracking,
   subscribeOrders,
+  updateBusinessSubscription,
   updateOrderStatus
 } from "@/lib/botixApi";
 import { assetUrl } from "@/lib/assetUrl";
 
-type SectionKey = "overview" | "orders" | "inventory" | "customers" | "couriers" | "reports";
+type SectionKey = "overview" | "orders" | "inventory" | "customers" | "couriers" | "reports" | "licenses";
 type CartItem = { inventoryId: string; quantity: number };
 type SummaryState = DaySummary & { profitTotal: number; counterSalesTotal: number };
 
@@ -53,7 +57,8 @@ const sections: Array<{ key: SectionKey; label: string; icon: typeof LayoutGrid 
   { key: "inventory", label: "Inventario", icon: Boxes },
   { key: "customers", label: "Clientes", icon: Users },
   { key: "couriers", label: "Repartidores", icon: Bike },
-  { key: "reports", label: "Reportes", icon: FileText }
+  { key: "reports", label: "Reportes", icon: FileText },
+  { key: "licenses", label: "Licencias", icon: FileText }
 ];
 
 const initialSummary: SummaryState = {
@@ -92,6 +97,7 @@ const initialCourierDraft = {
 
 type Props = {
   user: AppUser;
+  business: BusinessProfile | null;
   onSignOut: () => Promise<void>;
 };
 
@@ -119,12 +125,13 @@ const sumCost = (catalog: InventoryItem[], cart: CartItem[]) =>
     return item ? sum + item.costPrice * line.quantity : sum;
   }, 0);
 
-export const DashboardScreen = ({ user, onSignOut }: Props) => {
+export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const trackingBaseUrl = import.meta.env.VITE_TRACKING_BASE_URL ?? "https://botix-e493b.web.app/";
   const [activeSection, setActiveSection] = useState<SectionKey>("overview");
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [couriers, setCouriers] = useState<CourierProfile[]>([]);
+  const [businesses, setBusinesses] = useState<BusinessProfile[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [counterSales, setCounterSales] = useState<CounterSale[]>([]);
   const [summary, setSummary] = useState<SummaryState>(initialSummary);
@@ -152,6 +159,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isAdmin = user.role === "admin";
   const isCashier = user.role === "cashier";
+  const isSuperAdmin = user.role === "superadmin";
 
   useEffect(() => subscribeOrders(user.businessId, setOrders), [user.businessId]);
   useEffect(() => subscribeCustomers(user.businessId, setCustomers), [user.businessId]);
@@ -159,6 +167,7 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
   useEffect(() => subscribeInventory(user.businessId, setInventoryItems), [user.businessId]);
   useEffect(() => subscribeCounterSales(user.businessId, setCounterSales), [user.businessId]);
   useEffect(() => subscribeDaySummary(user.businessId, setSummary), [user.businessId]);
+  useEffect(() => (isSuperAdmin ? subscribeBusinesses(setBusinesses) : undefined), [isSuperAdmin]);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null,
@@ -183,8 +192,13 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
     [inventoryItems]
   );
   const visibleSections = useMemo(
-    () => sections.filter((section) => isAdmin || ["overview", "orders", "inventory", "customers"].includes(section.key)),
-    [isAdmin]
+    () =>
+      sections.filter((section) => {
+        if (isSuperAdmin) return section.key === "licenses";
+        if (isAdmin) return section.key !== "licenses";
+        return ["overview", "orders", "inventory", "customers"].includes(section.key);
+      }),
+    [isAdmin, isSuperAdmin]
   );
 
   useEffect(() => {
@@ -401,8 +415,35 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
 
   const generateTracking = async () => {
     if (!selectedOrder) return;
-    const token = await createTrackingLink(user.businessId, selectedOrder.id);
-    setTrackingUrl(`${trackingBaseUrl.replace(/\/$/, "")}/?token=${token}`);
+    try {
+      const token = await createTrackingLink(user.businessId, selectedOrder.id);
+      const url = `${trackingBaseUrl.replace(/\/$/, "")}/?token=${token}`;
+      setTrackingUrl(url);
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(url);
+          setNotice("Link de seguimiento generado y copiado al portapapeles.");
+        } catch {
+          setNotice("Link de seguimiento generado correctamente.");
+        }
+      } else {
+        setNotice("Link de seguimiento generado correctamente.");
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible generar el link de seguimiento.");
+    }
+  };
+
+  const saveBusinessAccess = async (
+    businessId: string,
+    patch: Partial<Pick<BusinessProfile, "subscriptionStatus" | "accessEnabled" | "plan" | "monthlyPrice" | "currentPeriodEnd" | "billingContactEmail" | "billingNote">>
+  ) => {
+    try {
+      await updateBusinessSubscription(businessId, patch);
+      setNotice("Suscripcion actualizada correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible actualizar la suscripcion.");
+    }
   };
 
   const downloadInventoryTemplate = () => {
@@ -512,7 +553,10 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
           <Bell size={16} />
           <div>
             <strong>{user.displayName}</strong>
-            <span>{user.businessId}</span>
+            <span>
+              {business?.businessName ?? user.businessId}
+              {!isSuperAdmin ? ` | ${business?.subscriptionStatus ?? "active"}` : ""}
+            </span>
           </div>
           <button className="ghost-button" onClick={() => void onSignOut()}>
             Salir
@@ -896,6 +940,49 @@ export const DashboardScreen = ({ user, onSignOut }: Props) => {
               <FileDown size={16} />
               Descargar PDF
             </button>
+          </article>
+        </main>
+      ) : null}
+
+      {activeSection === "licenses" && isSuperAdmin ? (
+        <main className="module-layout">
+          <article className="panel-card compact-card">
+            <div className="section-title compact-title">Panel comercial</div>
+            <div className="compact-table">
+              {businesses.map((entry) => (
+                <div className="compact-row" key={entry.id} style={{ alignItems: "start" }}>
+                  <div style={{ width: "100%" }}>
+                    <strong>{entry.businessName}</strong>
+                    <span>{entry.businessId}</span>
+                    <span>
+                      Estado: {entry.subscriptionStatus} | Acceso: {entry.accessEnabled ? "habilitado" : "bloqueado"}
+                    </span>
+                    <span>Plan: {entry.plan ?? "standard"} | Mensualidad: {formatCurrency(entry.monthlyPrice ?? 0)}</span>
+                    <span>Vence: {entry.currentPeriodEnd ?? "Sin fecha"}</span>
+                  </div>
+                  <div className="compact-row__meta" style={{ minWidth: 260 }}>
+                    <select
+                      value={entry.subscriptionStatus}
+                      onChange={(event) =>
+                        void saveBusinessAccess(entry.id, { subscriptionStatus: event.target.value as SubscriptionStatus })
+                      }
+                    >
+                      <option value="active">Activa</option>
+                      <option value="overdue">Mora</option>
+                      <option value="suspended">Suspendida</option>
+                      <option value="cancelled">Cancelada</option>
+                    </select>
+                    <button
+                      className="ghost-button compact-ghost"
+                      onClick={() => void saveBusinessAccess(entry.id, { accessEnabled: !entry.accessEnabled })}
+                      type="button"
+                    >
+                      {entry.accessEnabled ? "Bloquear acceso" : "Reactivar acceso"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </article>
         </main>
       ) : null}

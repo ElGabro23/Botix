@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import * as Location from "expo-location";
-import type { AppUser, DeliveryOrder } from "@botix/shared";
+import type { AppUser, BusinessProfile, DeliveryOrder } from "@botix/shared";
 import { liveTrackingPath, ordersPath } from "@botix/firebase-core";
 import { firebaseClient } from "./firebase";
 
@@ -22,15 +22,18 @@ const todayStartIso = () => {
 
 export const useDriverSession = () => {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let unsubscribeProfile = () => undefined;
+    let unsubscribeBusiness = () => undefined;
 
     const unsubscribe = onAuthStateChanged(firebaseClient.auth, (authUser) => {
       if (!authUser) {
         setUser(null);
+        setBusiness(null);
         setError("");
         setLoading(false);
         return;
@@ -39,7 +42,20 @@ export const useDriverSession = () => {
       unsubscribeProfile = onSnapshot(
         doc(firebaseClient.db, "users", authUser.uid),
         (snap) => {
-          setUser(snap.exists() ? ({ id: snap.id, ...snap.data() } as AppUser) : null);
+          const nextUser = snap.exists() ? ({ id: snap.id, ...snap.data() } as AppUser) : null;
+          setUser(nextUser);
+          unsubscribeBusiness();
+          if (nextUser?.businessId) {
+            unsubscribeBusiness = onSnapshot(doc(firebaseClient.db, "businesses", nextUser.businessId), (businessSnap) => {
+              setBusiness(
+                businessSnap.exists()
+                  ? ({ id: businessSnap.id, accessEnabled: true, subscriptionStatus: "active", ...businessSnap.data() } as BusinessProfile)
+                  : null
+              );
+            });
+          } else {
+            setBusiness(null);
+          }
           setError("");
           setLoading(false);
         },
@@ -53,11 +69,13 @@ export const useDriverSession = () => {
     return () => {
       unsubscribe();
       unsubscribeProfile();
+      unsubscribeBusiness();
     };
   }, []);
 
   return {
     user,
+    business,
     loading,
     error,
     signIn: async (email: string, password: string) => {

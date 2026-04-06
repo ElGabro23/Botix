@@ -63,6 +63,25 @@ export default function App() {
     );
   }
 
+  if (session.business && !session.business.accessEnabled) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loginScreen}>
+          <View style={styles.loginCard}>
+            <Text style={styles.title}>BOTIX Driver</Text>
+            <Text style={styles.subtitle}>Acceso suspendido</Text>
+            <Text style={styles.errorText}>
+              El negocio esta {session.business.subscriptionStatus} y el acceso fue bloqueado hasta regularizar el pago.
+            </Text>
+            <Pressable style={styles.primaryButton} onPress={() => void session.signOut()}>
+              <Text style={styles.primaryButtonText}>Salir</Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
