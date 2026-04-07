@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { LocationSubscription } from "expo-location";
 import type { DeliveryOrder } from "@botix/shared";
 import { formatCurrency, orderStatusLabel } from "@botix/shared";
@@ -34,6 +35,30 @@ export default function App() {
   const [password, setPassword] = useState("Botix123!");
   const [pushNotice, setPushNotice] = useState("");
   const [actionError, setActionError] = useState("");
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [savedEmail, savedPassword] = await Promise.all([
+          AsyncStorage.getItem(savedEmailKey),
+          AsyncStorage.getItem(savedPasswordKey)
+        ]);
+        if (savedEmail) setEmail(savedEmail);
+        if (savedPassword) setPassword(savedPassword);
+      } catch {
+        // Keep defaults if local storage is unavailable.
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!session.user) return;
+
+    void Promise.all([
+      AsyncStorage.setItem(savedEmailKey, email),
+      AsyncStorage.setItem(savedPasswordKey, password)
+    ]).catch(() => undefined);
+  }, [session.user, email, password]);
 
   useEffect(() => {
     if (!session.user) {
@@ -103,7 +128,13 @@ export default function App() {
               placeholderTextColor="#8a97b2"
               secureTextEntry
             />
-            <Pressable style={styles.primaryButton} onPress={() => void session.signIn(email, password)}>
+            <Pressable
+              style={styles.primaryButton}
+              onPress={() => {
+                setActionError("");
+                void session.signIn(email, password);
+              }}
+            >
               <Text style={styles.primaryButtonText}>Ingresar</Text>
             </Pressable>
           </View>
@@ -442,3 +473,6 @@ const styles = StyleSheet.create({
     marginBottom: 4
   }
 });
+
+const savedEmailKey = "botix.driver.email";
+const savedPasswordKey = "botix.driver.password";
