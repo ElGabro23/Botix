@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApps, initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth, initializeAuth } from "firebase/auth";
-import { getReactNativePersistence } from "firebase/auth/react-native";
+import { getAuth } from "firebase/auth";
+import { getReactNativePersistence, initializeAuth } from "@firebase/auth/dist/rn/index.js";
 
 const fallbackConfig = {
   apiKey: "AIzaSyBIy_RMiEIyYlZWYiuo1UdQliTln4smHx8",
