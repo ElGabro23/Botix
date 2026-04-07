@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import type { LocationSubscription } from "expo-location";
 import type { DeliveryOrder } from "@botix/shared";
 import { formatCurrency, orderStatusLabel } from "@botix/shared";
@@ -14,11 +15,21 @@ import {
   useDriverSession
 } from "./src/lib/driverApi";
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false
+  })
+});
+
 export default function App() {
   const session = useDriverSession();
   const { orders, error: ordersError } = useAssignedOrders(session.user?.businessId, session.user?.id);
   const dayEarnings = useDriverDayEarnings(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
+  const seenOrderIds = useRef<string[]>([]);
   const [email, setEmail] = useState("driver@botix.cl");
   const [password, setPassword] = useState("Botix123!");
   const [pushNotice, setPushNotice] = useState("");
@@ -27,6 +38,7 @@ export default function App() {
   useEffect(() => {
     if (!session.user) {
       setPushNotice("");
+      seenOrderIds.current = [];
       return;
     }
 
@@ -34,6 +46,29 @@ export default function App() {
       .then(() => setPushNotice("Notificaciones activadas para nuevos pedidos."))
       .catch((error) => setPushNotice(error instanceof Error ? error.message : "No fue posible activar notificaciones."));
   }, [session.user]);
+
+  useEffect(() => {
+    if (!session.user) return;
+
+    const previous = seenOrderIds.current;
+    const current = orders.map((order) => order.id);
+    const isInitialLoad = previous.length === 0;
+    const newOrders = orders.filter((order) => !previous.includes(order.id));
+
+    seenOrderIds.current = current;
+
+    if (isInitialLoad || !newOrders.length) return;
+
+    for (const order of newOrders) {
+      void Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Nuevo pedido asignado",
+          body: `Pedido #${order.orderNumber} para ${order.customerName}`
+        },
+        trigger: null
+      });
+    }
+  }, [orders, session.user]);
 
   if (session.loading) {
     return (

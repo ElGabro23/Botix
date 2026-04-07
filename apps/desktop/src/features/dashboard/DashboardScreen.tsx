@@ -126,7 +126,11 @@ const sumCost = (catalog: InventoryItem[], cart: CartItem[]) =>
   }, 0);
 
 export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
-  const trackingBaseUrl = import.meta.env.VITE_TRACKING_BASE_URL ?? "https://botix-e493b.web.app/";
+  const configuredTrackingBaseUrl = import.meta.env.VITE_TRACKING_BASE_URL;
+  const trackingBaseUrl =
+    !configuredTrackingBaseUrl || configuredTrackingBaseUrl.includes("localhost")
+      ? "https://botix-e493b.web.app/"
+      : configuredTrackingBaseUrl;
   const [activeSection, setActiveSection] = useState<SectionKey>("overview");
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);

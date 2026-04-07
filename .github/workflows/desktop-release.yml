@@ -39,7 +39,7 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: 213505703707
           VITE_FIREBASE_APP_ID: 1:213505703707:web:798a040c888c6b58e95dbe
           VITE_FIREBASE_MEASUREMENT_ID: G-RXFY7ZGHVY
-          VITE_TRACKING_BASE_URL: http://localhost:5174
+          VITE_TRACKING_BASE_URL: https://botix-e493b.web.app
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

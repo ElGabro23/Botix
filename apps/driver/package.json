@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@botix/firebase-core": "file:../../packages/firebase-core",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@botix/shared": "file:../../packages/shared",
     "expo": "~54.0.33",
     "expo-linking": "~8.0.11",
