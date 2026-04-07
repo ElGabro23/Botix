@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -38,6 +38,7 @@ export default function App() {
   const [savedCredentialsLoaded, setSavedCredentialsLoaded] = useState(false);
   const [autoLoginTried, setAutoLoginTried] = useState(false);
   const [restoringSession, setRestoringSession] = useState(false);
+  const [manualSignOut, setManualSignOut] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -66,7 +67,7 @@ export default function App() {
   }, [session.user, email, password]);
 
   useEffect(() => {
-    if (!savedCredentialsLoaded || session.loading || session.user || autoLoginTried) return;
+    if (!savedCredentialsLoaded || session.loading || session.user || autoLoginTried || manualSignOut) return;
     if (!email.trim() || !password.trim()) {
       setAutoLoginTried(true);
       return;
@@ -77,7 +78,7 @@ export default function App() {
     void session
       .signIn(email, password)
       .finally(() => setRestoringSession(false));
-  }, [autoLoginTried, email, password, savedCredentialsLoaded, session.loading, session.user, session]);
+  }, [autoLoginTried, email, manualSignOut, password, savedCredentialsLoaded, session.loading, session.user, session]);
 
   useEffect(() => {
     if (!session.user) {
@@ -131,11 +132,14 @@ export default function App() {
   }
 
   const handleManualSignOut = async () => {
+    setManualSignOut(true);
     await Promise.allSettled([
       AsyncStorage.removeItem(savedEmailKey),
       AsyncStorage.removeItem(savedPasswordKey)
     ]);
-    setAutoLoginTried(false);
+    setAutoLoginTried(true);
+    setEmail("");
+    setPassword("");
     await session.signOut();
   };
 
@@ -144,6 +148,7 @@ export default function App() {
       <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.loginScreen}>
           <View style={styles.loginCard}>
+            <Image source={require("./assets/icon.png")} style={styles.brandImage} />
             <Text style={styles.title}>BOTIX Driver</Text>
             <Text style={styles.subtitle}>Ingreso rapido para repartidores</Text>
             {session.error ? <Text style={styles.errorText}>{session.error}</Text> : null}
@@ -168,6 +173,7 @@ export default function App() {
               style={styles.primaryButton}
               onPress={() => {
                 setActionError("");
+                setManualSignOut(false);
                 void session.signIn(email, password);
               }}
             >
@@ -202,9 +208,12 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerBrand}>
+            <Image source={require("./assets/icon.png")} style={styles.headerImage} />
+            <View>
             <Text style={styles.title}>Mis pedidos</Text>
             <Text style={styles.subtitle}>{session.user.displayName}</Text>
+            </View>
           </View>
           <Pressable style={styles.secondaryButton} onPress={() => void handleManualSignOut()}>
             <Text style={styles.secondaryButtonText}>Salir</Text>
@@ -350,11 +359,28 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 4
   },
+  brandImage: {
+    width: 82,
+    height: 82,
+    alignSelf: "center",
+    marginBottom: 14,
+    resizeMode: "contain"
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8
+  },
+  headerBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  headerImage: {
+    width: 52,
+    height: 52,
+    resizeMode: "contain"
   },
   title: {
     fontSize: 28,

@@ -182,6 +182,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     Number.isFinite(tracking.lat) &&
     typeof tracking?.lng === "number" &&
     Number.isFinite(tracking.lng);
+  const isTrackingActive = tracking?.active === true;
 
   useEffect(() => {
     setSelectedOrderId((current) => current ?? orders[0]?.id);
@@ -792,7 +793,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                 <div className="tracking-box compact-tracking">
                   <div className="tracking-box__title">
                     <MapPinned size={15} />
-                    Seguimiento
+                    Seguimiento {isTrackingActive ? "activo" : "inactivo"}
                   </div>
                   {tracking && hasTrackingCoordinates ? (
                     <span>{tracking.lat.toFixed(5)}, {tracking.lng.toFixed(5)} | {formatCompactDateTime(tracking.updatedAt)}</span>

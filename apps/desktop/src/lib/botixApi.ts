@@ -594,24 +594,29 @@ export const subscribeDaySummary = (
 export const createTrackingLink = async (businessId: string, orderId: string) => {
   return runTransaction(firebaseClient.db, async (transaction) => {
     const orderRef = doc(firebaseClient.db, ordersPath(businessId), orderId);
+    const liveRef = doc(firebaseClient.db, liveTrackingPath(businessId), orderId);
     const orderSnap = await transaction.get(orderRef);
+    const liveSnap = await transaction.get(liveRef);
     if (!orderSnap.exists()) throw new Error("Pedido no encontrado.");
 
     const order = orderSnap.data() as DeliveryOrder;
+    const liveTracking = liveSnap.exists() ? (liveSnap.data() as LiveTracking) : null;
     const token = order.trackingToken ?? crypto.randomUUID().replace(/-/g, "");
     const timestamp = nowIso();
 
     transaction.set(
       trackingSessionRef(token),
-      {
+      withoutUndefined({
         businessId,
         orderId,
         customerName: order.customerName,
         status: order.status,
         courierName: order.assignedCourierName ?? null,
-        active: !["delivered", "cancelled"].includes(order.status),
+        lat: liveTracking?.lat,
+        lng: liveTracking?.lng,
+        active: liveTracking?.active ?? !["delivered", "cancelled"].includes(order.status),
         updatedAt: timestamp
-      },
+      }),
       { merge: true }
     );
 

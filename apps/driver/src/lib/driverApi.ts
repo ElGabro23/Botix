@@ -3,6 +3,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   setDoc,
@@ -160,10 +161,33 @@ export const updateDriverOrderStatus = async (
   orderId: string,
   status: DeliveryOrder["status"]
 ) => {
-  await updateDoc(doc(firebaseClient.db, ordersPath(businessId), orderId), {
+  const orderRef = doc(firebaseClient.db, ordersPath(businessId), orderId);
+  const timestamp = new Date().toISOString();
+  const orderSnap = await getDoc(orderRef);
+
+  await updateDoc(orderRef, {
     status,
-    updatedAt: new Date().toISOString()
+    updatedAt: timestamp
   });
+
+  if (orderSnap.exists()) {
+    const order = orderSnap.data() as DeliveryOrder;
+    if (order.trackingToken) {
+      await setDoc(
+        doc(firebaseClient.db, "trackingSessions", order.trackingToken),
+        {
+          businessId,
+          orderId,
+          courierId: order.assignedCourierId ?? null,
+          courierName: order.assignedCourierName ?? null,
+          status,
+          active: !["delivered", "cancelled"].includes(status),
+          updatedAt: timestamp
+        },
+        { merge: true }
+      );
+    }
+  }
 };
 
 export const registerDriverPushToken = async (userId: string) => {
@@ -205,46 +229,51 @@ export const startLocationTracking = async (
   const permission = await Location.requestForegroundPermissionsAsync();
   if (!permission.granted) throw new Error("Se requiere permiso de ubicacion.");
 
+  const writeTrackingLocation = async (location: Location.LocationObject) => {
+    const payload = {
+      orderId,
+      businessId,
+      courierId,
+      lat: location.coords.latitude,
+      lng: location.coords.longitude,
+      heading: location.coords.heading ?? null,
+      speed: location.coords.speed ?? null,
+      accuracy: location.coords.accuracy ?? null,
+      active: true,
+      updatedAt: new Date().toISOString()
+    };
+
+    await setDoc(doc(firebaseClient.db, liveTrackingPath(businessId), orderId), payload, { merge: true });
+
+    if (trackingToken) {
+      await setDoc(
+        doc(firebaseClient.db, "trackingSessions", trackingToken),
+        {
+          businessId,
+          orderId,
+          courierId,
+          lat: payload.lat,
+          lng: payload.lng,
+          active: true,
+          updatedAt: payload.updatedAt
+        },
+        { merge: true }
+      );
+    }
+  };
+
+  const initialLocation = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced
+  });
+  await writeTrackingLocation(initialLocation);
+
   return Location.watchPositionAsync(
     {
       accuracy: Location.Accuracy.Balanced,
       distanceInterval: 30,
       timeInterval: 20000
     },
-    async (location) => {
-      await setDoc(
-        doc(firebaseClient.db, liveTrackingPath(businessId), orderId),
-        {
-          orderId,
-          businessId,
-          courierId,
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-          heading: location.coords.heading ?? null,
-          speed: location.coords.speed ?? null,
-          accuracy: location.coords.accuracy ?? null,
-          active: true,
-          updatedAt: new Date().toISOString()
-        },
-        { merge: true }
-      );
-
-      if (trackingToken) {
-        await setDoc(
-          doc(firebaseClient.db, "trackingSessions", trackingToken),
-          {
-            businessId,
-            orderId,
-            courierId,
-            lat: location.coords.latitude,
-            lng: location.coords.longitude,
-            active: true,
-            updatedAt: new Date().toISOString()
-          },
-          { merge: true }
-        );
-      }
-    }
+    writeTrackingLocation
   );
 };
 

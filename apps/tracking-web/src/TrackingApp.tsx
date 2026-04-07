@@ -28,6 +28,11 @@ const firebaseClient = createFirebaseClient({
 export const TrackingApp = () => {
   const token = useMemo(() => new URLSearchParams(window.location.search).get("token"), []);
   const [session, setSession] = useState<TrackingSession | null>(null);
+  const hasCoordinates =
+    typeof session?.lat === "number" &&
+    Number.isFinite(session.lat) &&
+    typeof session?.lng === "number" &&
+    Number.isFinite(session.lng);
 
   useEffect(() => {
     if (!token) return;
@@ -72,10 +77,10 @@ export const TrackingApp = () => {
             </div>
 
             <div className="map-placeholder">
-              {session.lat && session.lng ? (
+              {hasCoordinates ? (
                 <>
                   <strong>
-                    {session.lat.toFixed(5)}, {session.lng.toFixed(5)}
+                    {session.lat!.toFixed(5)}, {session.lng!.toFixed(5)}
                   </strong>
                   <span>Base lista para integrar mapa visual con Google Maps o Mapbox.</span>
                 </>
