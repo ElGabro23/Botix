@@ -35,14 +35,29 @@ const todayStartIso = () => {
   return date.toISOString();
 };
 
+const resolveTrackingContext = async (context: TrackingContext) => {
+  if (context.trackingToken) return context;
+
+  const orderSnap = await getDoc(doc(firebaseClient.db, ordersPath(context.businessId), context.orderId));
+  if (!orderSnap.exists()) return context;
+
+  const order = orderSnap.data() as DeliveryOrder;
+  if (!order.trackingToken) return context;
+
+  const nextContext = { ...context, trackingToken: order.trackingToken };
+  await AsyncStorage.setItem(TRACKING_CONTEXT_KEY, JSON.stringify(nextContext));
+  return nextContext;
+};
+
 const writeTrackingLocation = async (
   context: TrackingContext,
   coords: Pick<Location.LocationObjectCoords, "latitude" | "longitude" | "heading" | "speed" | "accuracy">
 ) => {
+  const resolvedContext = await resolveTrackingContext(context);
   const payload = {
-    orderId: context.orderId,
-    businessId: context.businessId,
-    courierId: context.courierId,
+    orderId: resolvedContext.orderId,
+    businessId: resolvedContext.businessId,
+    courierId: resolvedContext.courierId,
     lat: coords.latitude,
     lng: coords.longitude,
     heading: coords.heading ?? null,
@@ -52,15 +67,19 @@ const writeTrackingLocation = async (
     updatedAt: new Date().toISOString()
   };
 
-  await setDoc(doc(firebaseClient.db, liveTrackingPath(context.businessId), context.orderId), payload, { merge: true });
+  await setDoc(
+    doc(firebaseClient.db, liveTrackingPath(resolvedContext.businessId), resolvedContext.orderId),
+    payload,
+    { merge: true }
+  );
 
-  if (context.trackingToken) {
+  if (resolvedContext.trackingToken) {
     await setDoc(
-      doc(firebaseClient.db, "trackingSessions", context.trackingToken),
+      doc(firebaseClient.db, "trackingSessions", resolvedContext.trackingToken),
       {
-        businessId: context.businessId,
-        orderId: context.orderId,
-        courierId: context.courierId,
+        businessId: resolvedContext.businessId,
+        orderId: resolvedContext.orderId,
+        courierId: resolvedContext.courierId,
         lat: payload.lat,
         lng: payload.lng,
         active: true,
