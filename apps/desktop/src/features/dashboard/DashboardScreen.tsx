@@ -177,6 +177,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     () => orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null,
     [orders, selectedOrderId]
   );
+  const hasTrackingCoordinates =
+    typeof tracking?.lat === "number" &&
+    Number.isFinite(tracking.lat) &&
+    typeof tracking?.lng === "number" &&
+    Number.isFinite(tracking.lng);
 
   useEffect(() => {
     setSelectedOrderId((current) => current ?? orders[0]?.id);
@@ -789,7 +794,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                     <MapPinned size={15} />
                     Seguimiento
                   </div>
-                  {tracking ? (
+                  {tracking && hasTrackingCoordinates ? (
                     <span>{tracking.lat.toFixed(5)}, {tracking.lng.toFixed(5)} | {formatCompactDateTime(tracking.updatedAt)}</span>
                   ) : (
                     <span>Sin tracking activo.</span>
