@@ -37,6 +37,7 @@ export default function App() {
   const [actionError, setActionError] = useState("");
   const [savedCredentialsLoaded, setSavedCredentialsLoaded] = useState(false);
   const [autoLoginTried, setAutoLoginTried] = useState(false);
+  const [restoringSession, setRestoringSession] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -72,7 +73,10 @@ export default function App() {
     }
 
     setAutoLoginTried(true);
-    void session.signIn(email, password);
+    setRestoringSession(true);
+    void session
+      .signIn(email, password)
+      .finally(() => setRestoringSession(false));
   }, [autoLoginTried, email, password, savedCredentialsLoaded, session.loading, session.user, session]);
 
   useEffect(() => {
@@ -114,6 +118,14 @@ export default function App() {
     return (
       <SafeAreaView style={styles.centered}>
         <Text>Cargando BOTIX Driver...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (savedCredentialsLoaded && restoringSession && !session.user) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <Text>Restaurando sesion...</Text>
       </SafeAreaView>
     );
   }
