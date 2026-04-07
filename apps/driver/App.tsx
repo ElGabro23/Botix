@@ -35,6 +35,8 @@ export default function App() {
   const [password, setPassword] = useState("Botix123!");
   const [pushNotice, setPushNotice] = useState("");
   const [actionError, setActionError] = useState("");
+  const [savedCredentialsLoaded, setSavedCredentialsLoaded] = useState(false);
+  const [autoLoginTried, setAutoLoginTried] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -47,6 +49,8 @@ export default function App() {
         if (savedPassword) setPassword(savedPassword);
       } catch {
         // Keep defaults if local storage is unavailable.
+      } finally {
+        setSavedCredentialsLoaded(true);
       }
     })();
   }, []);
@@ -59,6 +63,17 @@ export default function App() {
       AsyncStorage.setItem(savedPasswordKey, password)
     ]).catch(() => undefined);
   }, [session.user, email, password]);
+
+  useEffect(() => {
+    if (!savedCredentialsLoaded || session.loading || session.user || autoLoginTried) return;
+    if (!email.trim() || !password.trim()) {
+      setAutoLoginTried(true);
+      return;
+    }
+
+    setAutoLoginTried(true);
+    void session.signIn(email, password);
+  }, [autoLoginTried, email, password, savedCredentialsLoaded, session.loading, session.user, session]);
 
   useEffect(() => {
     if (!session.user) {
@@ -102,6 +117,15 @@ export default function App() {
       </SafeAreaView>
     );
   }
+
+  const handleManualSignOut = async () => {
+    await Promise.allSettled([
+      AsyncStorage.removeItem(savedEmailKey),
+      AsyncStorage.removeItem(savedPasswordKey)
+    ]);
+    setAutoLoginTried(false);
+    await session.signOut();
+  };
 
   if (!session.user) {
     return (
@@ -153,7 +177,7 @@ export default function App() {
             <Text style={styles.errorText}>
               El negocio esta {session.business.subscriptionStatus} y el acceso fue bloqueado hasta regularizar el pago.
             </Text>
-            <Pressable style={styles.primaryButton} onPress={() => void session.signOut()}>
+            <Pressable style={styles.primaryButton} onPress={() => void handleManualSignOut()}>
               <Text style={styles.primaryButtonText}>Salir</Text>
             </Pressable>
           </View>
@@ -170,7 +194,7 @@ export default function App() {
             <Text style={styles.title}>Mis pedidos</Text>
             <Text style={styles.subtitle}>{session.user.displayName}</Text>
           </View>
-          <Pressable style={styles.secondaryButton} onPress={() => void session.signOut()}>
+          <Pressable style={styles.secondaryButton} onPress={() => void handleManualSignOut()}>
             <Text style={styles.secondaryButtonText}>Salir</Text>
           </Pressable>
         </View>
