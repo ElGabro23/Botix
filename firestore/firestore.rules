@@ -142,7 +142,13 @@ service cloud.firestore {
       allow list: if false;
       allow create, update: if (isSignedIn()
         && sameBusiness(request.resource.data.businessId)
-        && userRole() in ['admin', 'cashier']) || isSuperAdmin();
+        && userRole() in ['admin', 'cashier']) || (
+          isSignedIn()
+          && sameOperationalBusiness(request.resource.data.businessId)
+          && userRole() == 'courier'
+          && exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)/deliveryOrders/$(request.resource.data.orderId))
+          && get(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)/deliveryOrders/$(request.resource.data.orderId)).data.assignedCourierId == request.auth.uid
+        ) || isSuperAdmin();
       allow delete: if false;
     }
   }

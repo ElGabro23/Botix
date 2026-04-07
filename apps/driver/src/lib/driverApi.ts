@@ -196,7 +196,12 @@ export const registerDriverPushToken = async (userId: string) => {
   return token;
 };
 
-export const startLocationTracking = async (businessId: string, orderId: string, courierId: string) => {
+export const startLocationTracking = async (
+  businessId: string,
+  orderId: string,
+  courierId: string,
+  trackingToken?: string
+) => {
   const permission = await Location.requestForegroundPermissionsAsync();
   if (!permission.granted) throw new Error("Se requiere permiso de ubicacion.");
 
@@ -210,24 +215,45 @@ export const startLocationTracking = async (businessId: string, orderId: string,
       await setDoc(
         doc(firebaseClient.db, liveTrackingPath(businessId), orderId),
         {
-        orderId,
-        businessId,
-        courierId,
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-        heading: location.coords.heading ?? null,
-        speed: location.coords.speed ?? null,
-        accuracy: location.coords.accuracy ?? null,
-        active: true,
-        updatedAt: new Date().toISOString()
+          orderId,
+          businessId,
+          courierId,
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+          heading: location.coords.heading ?? null,
+          speed: location.coords.speed ?? null,
+          accuracy: location.coords.accuracy ?? null,
+          active: true,
+          updatedAt: new Date().toISOString()
         },
         { merge: true }
       );
+
+      if (trackingToken) {
+        await setDoc(
+          doc(firebaseClient.db, "trackingSessions", trackingToken),
+          {
+            businessId,
+            orderId,
+            courierId,
+            lat: location.coords.latitude,
+            lng: location.coords.longitude,
+            active: true,
+            updatedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+      }
     }
   );
 };
 
-export const stopLocationTracking = async (businessId: string, orderId: string, courierId: string) => {
+export const stopLocationTracking = async (
+  businessId: string,
+  orderId: string,
+  courierId: string,
+  trackingToken?: string
+) => {
   await setDoc(doc(firebaseClient.db, liveTrackingPath(businessId), orderId), {
     orderId,
     businessId,
@@ -235,4 +261,18 @@ export const stopLocationTracking = async (businessId: string, orderId: string, 
     active: false,
     updatedAt: new Date().toISOString()
   }, { merge: true });
+
+  if (trackingToken) {
+    await setDoc(
+      doc(firebaseClient.db, "trackingSessions", trackingToken),
+      {
+        businessId,
+        orderId,
+        courierId,
+        active: false,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+  }
 };

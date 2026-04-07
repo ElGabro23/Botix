@@ -237,7 +237,8 @@ export default function App() {
                 trackingRef.current = await startLocationTracking(
                   session.user.businessId,
                   order.id,
-                  session.user.id
+                  session.user.id,
+                  order.trackingToken
                 );
               } catch (error) {
                 setActionError(error instanceof Error ? error.message : "No fue posible iniciar el reparto.");
@@ -248,7 +249,7 @@ export default function App() {
               try {
                 setActionError("");
                 trackingRef.current?.remove();
-                await stopLocationTracking(session.user.businessId, order.id, session.user.id);
+                await stopLocationTracking(session.user.businessId, order.id, session.user.id, order.trackingToken);
                 await updateDriverOrderStatus(session.user.businessId, order.id, "delivered");
               } catch (error) {
                 setActionError(error instanceof Error ? error.message : "No fue posible marcar el pedido como entregado.");
