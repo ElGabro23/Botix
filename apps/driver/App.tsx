@@ -9,6 +9,7 @@ import { formatCurrency, orderStatusLabel } from "@botix/shared";
 import {
   registerDriverPushToken,
   startLocationTracking,
+  stopAllDriverTracking,
   stopLocationTracking,
   useDriverDayEarnings,
   updateDriverOrderStatus,
@@ -133,6 +134,7 @@ export default function App() {
 
   const handleManualSignOut = async () => {
     setManualSignOut(true);
+    await stopAllDriverTracking().catch(() => undefined);
     await Promise.allSettled([
       AsyncStorage.removeItem(savedEmailKey),
       AsyncStorage.removeItem(savedPasswordKey)

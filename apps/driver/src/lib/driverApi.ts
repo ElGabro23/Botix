@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   arrayUnion,
   collection,
@@ -13,15 +14,77 @@ import {
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
+import * as TaskManager from "expo-task-manager";
 import type { AppUser, BusinessProfile, DeliveryOrder } from "@botix/shared";
 import { liveTrackingPath, ordersPath } from "@botix/firebase-core";
 import { firebaseClient } from "./firebase";
+
+const TRACKING_TASK_NAME = "botix-driver-live-tracking";
+const TRACKING_CONTEXT_KEY = "botix.driver.tracking-context";
+
+type TrackingContext = {
+  businessId: string;
+  orderId: string;
+  courierId: string;
+  trackingToken?: string;
+};
 
 const todayStartIso = () => {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
   return date.toISOString();
 };
+
+const writeTrackingLocation = async (
+  context: TrackingContext,
+  coords: Pick<Location.LocationObjectCoords, "latitude" | "longitude" | "heading" | "speed" | "accuracy">
+) => {
+  const payload = {
+    orderId: context.orderId,
+    businessId: context.businessId,
+    courierId: context.courierId,
+    lat: coords.latitude,
+    lng: coords.longitude,
+    heading: coords.heading ?? null,
+    speed: coords.speed ?? null,
+    accuracy: coords.accuracy ?? null,
+    active: true,
+    updatedAt: new Date().toISOString()
+  };
+
+  await setDoc(doc(firebaseClient.db, liveTrackingPath(context.businessId), context.orderId), payload, { merge: true });
+
+  if (context.trackingToken) {
+    await setDoc(
+      doc(firebaseClient.db, "trackingSessions", context.trackingToken),
+      {
+        businessId: context.businessId,
+        orderId: context.orderId,
+        courierId: context.courierId,
+        lat: payload.lat,
+        lng: payload.lng,
+        active: true,
+        updatedAt: payload.updatedAt
+      },
+      { merge: true }
+    );
+  }
+};
+
+if (!TaskManager.isTaskDefined(TRACKING_TASK_NAME)) {
+  TaskManager.defineTask(TRACKING_TASK_NAME, async ({ data, error }) => {
+    if (error) return;
+    const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations;
+    const latest = locations?.[locations.length - 1];
+    if (!latest) return;
+
+    const rawContext = await AsyncStorage.getItem(TRACKING_CONTEXT_KEY);
+    if (!rawContext) return;
+
+    const context = JSON.parse(rawContext) as TrackingContext;
+    await writeTrackingLocation(context, latest.coords);
+  });
+}
 
 export const useDriverSession = () => {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -226,54 +289,55 @@ export const startLocationTracking = async (
   courierId: string,
   trackingToken?: string
 ) => {
+  const context: TrackingContext = {
+    businessId,
+    orderId,
+    courierId,
+    trackingToken
+  };
   const permission = await Location.requestForegroundPermissionsAsync();
   if (!permission.granted) throw new Error("Se requiere permiso de ubicacion.");
 
-  const writeTrackingLocation = async (location: Location.LocationObject) => {
-    const payload = {
-      orderId,
-      businessId,
-      courierId,
-      lat: location.coords.latitude,
-      lng: location.coords.longitude,
-      heading: location.coords.heading ?? null,
-      speed: location.coords.speed ?? null,
-      accuracy: location.coords.accuracy ?? null,
-      active: true,
-      updatedAt: new Date().toISOString()
-    };
+  try {
+    await Location.enableNetworkProviderAsync();
+  } catch {
+    // Continue even if the device rejects the provider prompt.
+  }
 
-    await setDoc(doc(firebaseClient.db, liveTrackingPath(businessId), orderId), payload, { merge: true });
-
-    if (trackingToken) {
-      await setDoc(
-        doc(firebaseClient.db, "trackingSessions", trackingToken),
-        {
-          businessId,
-          orderId,
-          courierId,
-          lat: payload.lat,
-          lng: payload.lng,
-          active: true,
-          updatedAt: payload.updatedAt
-        },
-        { merge: true }
-      );
-    }
-  };
+  const backgroundPermission = await Location.requestBackgroundPermissionsAsync();
+  await AsyncStorage.setItem(TRACKING_CONTEXT_KEY, JSON.stringify(context));
 
   const initialLocation = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced
+    accuracy: Location.Accuracy.High
   });
-  await writeTrackingLocation(initialLocation);
+  await writeTrackingLocation(context, initialLocation.coords);
+
+  if (backgroundPermission.granted) {
+    const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(TRACKING_TASK_NAME);
+    if (alreadyStarted) {
+      await Location.stopLocationUpdatesAsync(TRACKING_TASK_NAME);
+    }
+
+    await Location.startLocationUpdatesAsync(TRACKING_TASK_NAME, {
+      accuracy: Location.Accuracy.High,
+      distanceInterval: 8,
+      timeInterval: 7000,
+      pausesUpdatesAutomatically: false,
+      foregroundService: {
+        notificationTitle: "BOTIX Driver activo",
+        notificationBody: "Compartiendo ubicacion del pedido en reparto",
+        notificationColor: "#1f93d0"
+      }
+    });
+  }
 
   return Location.watchPositionAsync(
     {
-      accuracy: Location.Accuracy.Balanced,
-      distanceInterval: 30,
-      timeInterval: 20000
+      accuracy: Location.Accuracy.High,
+      distanceInterval: 5,
+      timeInterval: 5000
     },
-    writeTrackingLocation
+    (location) => writeTrackingLocation(context, location.coords)
   );
 };
 
@@ -283,6 +347,12 @@ export const stopLocationTracking = async (
   courierId: string,
   trackingToken?: string
 ) => {
+  await AsyncStorage.removeItem(TRACKING_CONTEXT_KEY);
+  const started = await Location.hasStartedLocationUpdatesAsync(TRACKING_TASK_NAME);
+  if (started) {
+    await Location.stopLocationUpdatesAsync(TRACKING_TASK_NAME);
+  }
+
   await setDoc(doc(firebaseClient.db, liveTrackingPath(businessId), orderId), {
     orderId,
     businessId,
@@ -303,5 +373,13 @@ export const stopLocationTracking = async (
       },
       { merge: true }
     );
+  }
+};
+
+export const stopAllDriverTracking = async () => {
+  await AsyncStorage.removeItem(TRACKING_CONTEXT_KEY);
+  const started = await Location.hasStartedLocationUpdatesAsync(TRACKING_TASK_NAME);
+  if (started) {
+    await Location.stopLocationUpdatesAsync(TRACKING_TASK_NAME);
   }
 };
