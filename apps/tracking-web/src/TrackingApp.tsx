@@ -33,6 +33,15 @@ export const TrackingApp = () => {
     Number.isFinite(session.lat) &&
     typeof session?.lng === "number" &&
     Number.isFinite(session.lng);
+  const mapBounds = useMemo(() => {
+    if (!hasCoordinates) return "";
+    const offset = 0.0035;
+    const left = session!.lng! - offset;
+    const bottom = session!.lat! - offset;
+    const right = session!.lng! + offset;
+    const top = session!.lat! + offset;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${session!.lat!}%2C${session!.lng!}`;
+  }, [hasCoordinates, session]);
 
   useEffect(() => {
     if (!token) return;
@@ -82,6 +91,12 @@ export const TrackingApp = () => {
                   <strong>
                     {session.lat!.toFixed(5)}, {session.lng!.toFixed(5)}
                   </strong>
+                  <iframe
+                    title="Mapa de seguimiento"
+                    src={mapBounds}
+                    style={{ width: "100%", height: 260, border: 0, borderRadius: 18 }}
+                    loading="lazy"
+                  />
                   <span>Base lista para integrar mapa visual con Google Maps o Mapbox.</span>
                 </>
               ) : (

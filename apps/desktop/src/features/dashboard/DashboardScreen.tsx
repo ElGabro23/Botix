@@ -19,6 +19,7 @@ import type {
   Customer,
   DaySummary,
   DeliveryOrder,
+  ExpenseRecord,
   InventoryItem,
   LiveTracking,
   PaymentMethod,
@@ -33,12 +34,14 @@ import {
   createTrackingLink,
   importInventoryItems,
   registerCounterSale,
+  saveExpenseRecord,
   saveInventoryItem,
   subscribeBusinesses,
   subscribeCounterSales,
   subscribeCouriers,
   subscribeCustomers,
   subscribeDaySummary,
+  subscribeExpenses,
   subscribeInventory,
   subscribeLiveTracking,
   subscribeOrders,
@@ -47,9 +50,14 @@ import {
 } from "@/lib/botixApi";
 import { assetUrl } from "@/lib/assetUrl";
 
-type SectionKey = "overview" | "orders" | "inventory" | "customers" | "couriers" | "reports" | "licenses";
+type SectionKey = "overview" | "orders" | "inventory" | "customers" | "couriers" | "expenses" | "reports" | "licenses";
 type CartItem = { inventoryId: string; quantity: number };
-type SummaryState = DaySummary & { profitTotal: number; counterSalesTotal: number };
+type SummaryState = DaySummary & {
+  profitTotal: number;
+  counterSalesTotal: number;
+  expenseTotal: number;
+  netProfitTotal: number;
+};
 
 const sections: Array<{ key: SectionKey; label: string; icon: typeof LayoutGrid }> = [
   { key: "overview", label: "Caja Meson", icon: LayoutGrid },
@@ -57,6 +65,7 @@ const sections: Array<{ key: SectionKey; label: string; icon: typeof LayoutGrid 
   { key: "inventory", label: "Inventario", icon: Boxes },
   { key: "customers", label: "Clientes", icon: Users },
   { key: "couriers", label: "Repartidores", icon: Bike },
+  { key: "expenses", label: "Gastos", icon: FileText },
   { key: "reports", label: "Reportes", icon: FileText },
   { key: "licenses", label: "Licencias", icon: FileText }
 ];
@@ -68,7 +77,9 @@ const initialSummary: SummaryState = {
   deliveryTotal: 0,
   openOrders: 0,
   profitTotal: 0,
-  counterSalesTotal: 0
+  counterSalesTotal: 0,
+  expenseTotal: 0,
+  netProfitTotal: 0
 };
 
 const initialInventoryDraft = {
@@ -93,6 +104,12 @@ const initialCourierDraft = {
   email: "",
   phone: "",
   password: ""
+};
+
+const initialExpenseDraft = {
+  category: "Luz",
+  description: "",
+  amount: ""
 };
 
 type Props = {
@@ -137,6 +154,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const [couriers, setCouriers] = useState<CourierProfile[]>([]);
   const [businesses, setBusinesses] = useState<BusinessProfile[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [counterSales, setCounterSales] = useState<CounterSale[]>([]);
   const [summary, setSummary] = useState<SummaryState>(initialSummary);
   const [selectedOrderId, setSelectedOrderId] = useState<string>();
@@ -160,6 +178,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const [customerDraft, setCustomerDraft] = useState(initialCustomerDraft);
   const [orderCustomerDraft, setOrderCustomerDraft] = useState(initialCustomerDraft);
   const [courierDraft, setCourierDraft] = useState(initialCourierDraft);
+  const [expenseDraft, setExpenseDraft] = useState(initialExpenseDraft);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isAdmin = user.role === "admin";
   const isCashier = user.role === "cashier";
@@ -169,6 +188,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   useEffect(() => subscribeCustomers(user.businessId, setCustomers), [user.businessId]);
   useEffect(() => subscribeCouriers(user.businessId, setCouriers), [user.businessId]);
   useEffect(() => subscribeInventory(user.businessId, setInventoryItems), [user.businessId]);
+  useEffect(() => subscribeExpenses(user.businessId, setExpenses), [user.businessId]);
   useEffect(() => subscribeCounterSales(user.businessId, setCounterSales), [user.businessId]);
   useEffect(() => subscribeDaySummary(user.businessId, setSummary), [user.businessId]);
   useEffect(() => (isSuperAdmin ? subscribeBusinesses(setBusinesses) : undefined), [isSuperAdmin]);
@@ -423,6 +443,27 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     }
   };
 
+  const saveExpense = async () => {
+    if (!expenseDraft.category || !expenseDraft.description || !expenseDraft.amount) {
+      setNotice("Completa categoria, descripcion y monto del gasto.");
+      return;
+    }
+    setSaving("expense");
+    try {
+      await saveExpenseRecord(user, {
+        category: expenseDraft.category,
+        description: expenseDraft.description,
+        amount: Number(expenseDraft.amount || 0)
+      });
+      setExpenseDraft(initialExpenseDraft);
+      setNotice("Gasto registrado correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible guardar el gasto.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const generateTracking = async () => {
     if (!selectedOrder) return;
     try {
@@ -523,6 +564,8 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       <tr><th>Ventas meson del mes</th><td>${formatCurrency(summary.counterSalesTotal)}</td></tr>
       <tr><th>Delivery del mes</th><td>${formatCurrency(summary.deliveryTotal)}</td></tr>
       <tr><th>Utilidad estimada</th><td>${formatCurrency(summary.profitTotal)}</td></tr>
+      <tr><th>Gastos del mes</th><td>${formatCurrency(summary.expenseTotal)}</td></tr>
+      <tr><th>Ganancia real</th><td>${formatCurrency(summary.netProfitTotal)}</td></tr>
       <tr><th>Pedidos abiertos</th><td>${summary.openOrders}</td></tr>
       </tbody></table></body></html>
     `);
@@ -942,7 +985,9 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
             <div className="section-title compact-title">Reporte mensual</div>
             <div className="report-grid">
               <div className="metric-tile compact-tile"><span>Ventas</span><strong>{formatCurrency(summary.salesTotal)}</strong></div>
-              <div className="metric-tile compact-tile"><span>Ganancia</span><strong>{formatCurrency(summary.profitTotal)}</strong></div>
+              <div className="metric-tile compact-tile"><span>Utilidad</span><strong>{formatCurrency(summary.profitTotal)}</strong></div>
+              <div className="metric-tile compact-tile"><span>Gastos</span><strong>{formatCurrency(summary.expenseTotal)}</strong></div>
+              <div className="metric-tile compact-tile"><span>Ganancia real</span><strong>{formatCurrency(summary.netProfitTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Efectivo</span><strong>{formatCurrency(summary.cashTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Tarjeta</span><strong>{formatCurrency(summary.cardTotal)}</strong></div>
             </div>
@@ -950,6 +995,64 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
               <FileDown size={16} />
               Descargar PDF
             </button>
+          </article>
+        </main>
+      ) : null}
+
+      {activeSection === "expenses" && isAdmin ? (
+        <main className="module-layout">
+          <article className="panel-card compact-card">
+            <div className="section-title compact-title">Registrar gasto</div>
+            <div className="field-grid compact-grid">
+              <select
+                value={expenseDraft.category}
+                onChange={(event) => setExpenseDraft((current) => ({ ...current, category: event.target.value }))}
+              >
+                <option value="Luz">Luz</option>
+                <option value="Agua">Agua</option>
+                <option value="Internet">Internet</option>
+                <option value="Arriendo">Arriendo</option>
+                <option value="Sueldos">Sueldos</option>
+                <option value="Otros">Otros</option>
+              </select>
+              <input
+                placeholder="Monto del gasto"
+                type="number"
+                value={expenseDraft.amount}
+                onChange={(event) => setExpenseDraft((current) => ({ ...current, amount: event.target.value }))}
+              />
+              <input
+                className="field-span"
+                placeholder="Descripcion del gasto"
+                value={expenseDraft.description}
+                onChange={(event) => setExpenseDraft((current) => ({ ...current, description: event.target.value }))}
+              />
+            </div>
+            <button className="action-button action-button--primary compact-action" onClick={() => void saveExpense()}>
+              {saving === "expense" ? "Guardando..." : "Guardar gasto"}
+            </button>
+          </article>
+
+          <article className="panel-card compact-card">
+            <div className="section-title compact-title">Gastos del mes</div>
+            <div className="compact-table">
+              {expenses.length ? (
+                expenses.map((expense) => (
+                  <div className="compact-row" key={expense.id}>
+                    <div>
+                      <strong>{expense.category}</strong>
+                      <span>{expense.description}</span>
+                      <span>{formatCompactDateTime(expense.createdAt)}</span>
+                    </div>
+                    <div className="compact-row__meta">
+                      <strong>{formatCurrency(expense.amount)}</strong>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-state">Aun no hay gastos registrados este mes.</div>
+              )}
+            </div>
           </article>
         </main>
       ) : null}

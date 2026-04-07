@@ -22,6 +22,7 @@ import type {
   Customer,
   DaySummary,
   DeliveryOrder,
+  ExpenseRecord,
   InventoryItem,
   LiveTracking,
   OrderItem,
@@ -81,6 +82,11 @@ type PointOfSaleLedgerDocument = {
   updatedAt?: string;
 };
 
+type ExpenseLedgerDocument = {
+  expenses: ExpenseRecord[];
+  updatedAt?: string;
+};
+
 type CountersDocument = {
   deliveryOrderSequence?: number;
   lastSaleNumber?: number;
@@ -89,6 +95,8 @@ type CountersDocument = {
 const inventoryDocRef = (businessId: string) =>
   doc(firebaseClient.db, "businesses", businessId, "settings", "inventoryCatalog");
 const posLedgerRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "posLedger");
+const expenseLedgerRef = (businessId: string) =>
+  doc(firebaseClient.db, "businesses", businessId, "settings", "expenseLedger");
 const countersRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId, "settings", "counters");
 const trackingSessionRef = (token: string) => doc(firebaseClient.db, "trackingSessions", token);
 const businessRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId);
@@ -195,6 +203,16 @@ export const subscribeCounterSales = (
   onSnapshot(
     posLedgerRef(businessId).withConverter(identityConverter<PointOfSaleLedgerDocument>()),
     (snap) => onData(snap.exists() ? (snap.data().sales ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [])
+  );
+
+export const subscribeExpenses = (
+  businessId: string,
+  onData: (expenses: ExpenseRecord[]) => void
+) =>
+  onSnapshot(
+    expenseLedgerRef(businessId).withConverter(identityConverter<ExpenseLedgerDocument>()),
+    (snap) =>
+      onData(snap.exists() ? (snap.data().expenses ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [])
   );
 
 export const saveInventoryItem = async (businessId: string, item: Omit<InventoryItem, "updatedAt">) => {
@@ -492,6 +510,36 @@ export const registerCounterSale = async (
   });
 };
 
+export const saveExpenseRecord = async (
+  user: AppUser,
+  input: Pick<ExpenseRecord, "category" | "description" | "amount">
+) => {
+  await runTransaction(firebaseClient.db, async (transaction) => {
+    const ledgerSnap = await transaction.get(expenseLedgerRef(user.businessId));
+    const expenses = ledgerSnap.exists()
+      ? ((ledgerSnap.data() as ExpenseLedgerDocument).expenses ?? [])
+      : [];
+    const expense: ExpenseRecord = {
+      id: crypto.randomUUID(),
+      businessId: user.businessId,
+      category: input.category,
+      description: input.description,
+      amount: input.amount,
+      createdBy: user.id,
+      createdAt: nowIso()
+    };
+
+    transaction.set(
+      expenseLedgerRef(user.businessId),
+      {
+        expenses: [expense, ...expenses].slice(0, 600),
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+  });
+};
+
 export const updateOrderStatus = async (
   businessId: string,
   orderId: string,
@@ -527,10 +575,11 @@ export const assignCourier = async (
 
 export const subscribeDaySummary = (
   businessId: string,
-  onData: (summary: DaySummary & { profitTotal: number; counterSalesTotal: number }) => void
+  onData: (summary: DaySummary & { profitTotal: number; counterSalesTotal: number; expenseTotal: number; netProfitTotal: number }) => void
 ) => {
   let deliveryOrders: DeliveryOrder[] = [];
   let counterSales: CounterSale[] = [];
+  let expenses: ExpenseRecord[] = [];
 
   const emit = () => {
     const summary = {
@@ -540,7 +589,9 @@ export const subscribeDaySummary = (
       deliveryTotal: 0,
       openOrders: 0,
       profitTotal: 0,
-      counterSalesTotal: 0
+      counterSalesTotal: 0,
+      expenseTotal: 0,
+      netProfitTotal: 0
     };
 
     for (const order of deliveryOrders) {
@@ -561,6 +612,12 @@ export const subscribeDaySummary = (
       if (sale.paymentMethod === "cash") summary.cashTotal += sale.total;
       if (sale.paymentMethod === "card") summary.cardTotal += sale.total;
     }
+
+    for (const expense of expenses) {
+      summary.expenseTotal += expense.amount;
+    }
+
+    summary.netProfitTotal = summary.profitTotal - summary.expenseTotal;
 
     onData(summary);
   };
@@ -585,9 +642,19 @@ export const subscribeDaySummary = (
     }
   );
 
+  const unsubscribeExpenses = onSnapshot(
+    expenseLedgerRef(businessId).withConverter(identityConverter<ExpenseLedgerDocument>()),
+    (snap) => {
+      const allExpenses = snap.exists() ? (snap.data().expenses ?? []) : [];
+      expenses = allExpenses.filter((expense) => expense.createdAt >= monthStartIso());
+      emit();
+    }
+  );
+
   return () => {
     unsubscribeOrders();
     unsubscribeSales();
+    unsubscribeExpenses();
   };
 };
 

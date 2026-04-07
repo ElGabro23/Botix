@@ -156,6 +156,16 @@ export interface CounterSale {
   createdAt: string;
 }
 
+export interface ExpenseRecord {
+  id: string;
+  businessId: string;
+  category: string;
+  description: string;
+  amount: number;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface OrderDraftInput {
   customerName: string;
   customerPhone: string;
