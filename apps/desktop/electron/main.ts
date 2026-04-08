@@ -14,7 +14,7 @@ const createWindow = async () => {
     minWidth: 1280,
     minHeight: 820,
     backgroundColor: "#eef3ff",
-    title: "BOTIX",
+    title: "X Commerce",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

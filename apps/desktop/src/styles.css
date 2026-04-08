@@ -1,4 +1,8 @@
 :root {
+  --brand-primary: #4d8dff;
+  --brand-secondary: #6d7dff;
+  --brand-accent: #56b173;
+  --brand-surface: #eff4ff;
   color-scheme: light;
   font-family: "Segoe UI", "Inter", sans-serif;
   background:
@@ -156,8 +160,8 @@ input {
 }
 
 .nav-item.active {
-  color: #3559df;
-  background: rgba(77, 141, 255, 0.14);
+  color: var(--brand-primary);
+  background: color-mix(in srgb, var(--brand-primary) 14%, white);
 }
 
 .user-badge {
@@ -266,8 +270,8 @@ input {
 .action-button--primary,
 .primary-button {
   color: white;
-  background: linear-gradient(135deg, #4d8dff, #6d7dff);
-  box-shadow: 0 16px 30px rgba(90, 120, 228, 0.28);
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  box-shadow: 0 16px 30px color-mix(in srgb, var(--brand-primary) 30%, transparent);
 }
 
 .action-button--danger {
@@ -281,7 +285,7 @@ input {
 
 .ghost-button {
   padding: 12px 14px;
-  color: #3559df;
+  color: var(--brand-primary);
   background: #edf3ff;
 }
 
@@ -490,8 +494,8 @@ select {
   gap: 8px;
   padding: 16px;
   border-radius: 20px;
-  background: linear-gradient(135deg, #eef7ff, #f7fbff);
-  border: 1px solid #d7e7ff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 10%, white), #f7fbff);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 22%, white);
   margin-bottom: 18px;
 }
 

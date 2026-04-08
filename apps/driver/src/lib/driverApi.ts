@@ -15,7 +15,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebas
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
-import type { AppUser, BusinessProfile, DeliveryOrder } from "@botix/shared";
+import { resolveBusinessProfile, type AppUser, type BusinessProfile, type DeliveryOrder } from "@botix/shared";
 import { liveTrackingPath, ordersPath } from "@botix/firebase-core";
 import { firebaseClient } from "./firebase";
 
@@ -134,7 +134,7 @@ export const useDriverSession = () => {
             unsubscribeBusiness = onSnapshot(doc(firebaseClient.db, "businesses", nextUser.businessId), (businessSnap) => {
               setBusiness(
                 businessSnap.exists()
-                  ? ({ id: businessSnap.id, accessEnabled: true, subscriptionStatus: "active", ...businessSnap.data() } as BusinessProfile)
+                  ? (resolveBusinessProfile({ id: businessSnap.id, ...businessSnap.data() }) as BusinessProfile)
                   : null
               );
             });

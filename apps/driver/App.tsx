@@ -4,8 +4,7 @@ import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { LocationSubscription } from "expo-location";
-import type { DeliveryOrder } from "@botix/shared";
-import { formatCurrency, orderStatusLabel } from "@botix/shared";
+import { formatCurrency, getOrderStatusMeta, resolveBusinessProfile, type DeliveryOrder } from "@botix/shared";
 import {
   registerDriverPushToken,
   startLocationTracking,
@@ -16,6 +15,7 @@ import {
   useAssignedOrders,
   useDriverSession
 } from "./src/lib/driverApi";
+import { driverBrandAssets } from "./src/lib/brandAssets";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,6 +28,7 @@ Notifications.setNotificationHandler({
 
 export default function App() {
   const session = useDriverSession();
+  const businessConfig = resolveBusinessProfile(session.business);
   const { orders, error: ordersError } = useAssignedOrders(session.user?.businessId, session.user?.id);
   const dayEarnings = useDriverDayEarnings(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
@@ -119,7 +120,7 @@ export default function App() {
   if (session.loading) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text>Cargando BOTIX Driver...</Text>
+        <Text>Cargando plataforma...</Text>
       </SafeAreaView>
     );
   }
@@ -150,8 +151,8 @@ export default function App() {
       <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.loginScreen}>
           <View style={styles.loginCard}>
-            <Image source={require("./assets/icon.png")} style={styles.brandImage} />
-            <Text style={styles.title}>BOTIX Driver</Text>
+            <Image source={driverBrandAssets[businessConfig.logoAsset]} style={styles.brandImage} />
+            <Text style={styles.title}>{businessConfig.brandName} Driver</Text>
             <Text style={styles.subtitle}>Ingreso rapido para repartidores</Text>
             {session.error ? <Text style={styles.errorText}>{session.error}</Text> : null}
             <TextInput
@@ -172,7 +173,7 @@ export default function App() {
               secureTextEntry
             />
             <Pressable
-              style={styles.primaryButton}
+              style={[styles.primaryButton, { backgroundColor: businessConfig.theme.primary }]}
               onPress={() => {
                 setActionError("");
                 setManualSignOut(false);
@@ -192,12 +193,13 @@ export default function App() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loginScreen}>
           <View style={styles.loginCard}>
-            <Text style={styles.title}>BOTIX Driver</Text>
+            <Image source={driverBrandAssets[businessConfig.logoAsset]} style={styles.brandImage} />
+            <Text style={styles.title}>{businessConfig.brandName} Driver</Text>
             <Text style={styles.subtitle}>Acceso suspendido</Text>
             <Text style={styles.errorText}>
               El negocio esta {session.business.subscriptionStatus} y el acceso fue bloqueado hasta regularizar el pago.
             </Text>
-            <Pressable style={styles.primaryButton} onPress={() => void handleManualSignOut()}>
+            <Pressable style={[styles.primaryButton, { backgroundColor: businessConfig.theme.primary }]} onPress={() => void handleManualSignOut()}>
               <Text style={styles.primaryButtonText}>Salir</Text>
             </Pressable>
           </View>
@@ -211,14 +213,14 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerBrand}>
-            <Image source={require("./assets/icon.png")} style={styles.headerImage} />
+            <Image source={driverBrandAssets[businessConfig.logoAsset]} style={styles.headerImage} />
             <View>
-            <Text style={styles.title}>Mis pedidos</Text>
-            <Text style={styles.subtitle}>{session.user.displayName}</Text>
+              <Text style={styles.title}>Mis pedidos</Text>
+              <Text style={styles.subtitle}>{session.user.displayName}</Text>
             </View>
           </View>
           <Pressable style={styles.secondaryButton} onPress={() => void handleManualSignOut()}>
-            <Text style={styles.secondaryButtonText}>Salir</Text>
+            <Text style={[styles.secondaryButtonText, { color: businessConfig.theme.primary }]}>Salir</Text>
           </Pressable>
         </View>
         <View style={styles.earningsCard}>
@@ -239,6 +241,12 @@ export default function App() {
           <OrderCard
             key={order.id}
             order={order}
+            brandPrimary={businessConfig.theme.primary}
+            brandSecondary={businessConfig.theme.accent}
+            statusLabel={getOrderStatusMeta(businessConfig.orderStatuses, order.status).label}
+            productsLabel={businessConfig.labels.products}
+            startLabel={getOrderStatusMeta(businessConfig.orderStatuses, "en_route").label}
+            deliveredLabel={getOrderStatusMeta(businessConfig.orderStatuses, "delivered").label}
             onStart={async () => {
               if (!session.user) return;
               try {
@@ -275,17 +283,29 @@ export default function App() {
 
 const OrderCard = ({
   order,
+  brandPrimary,
+  brandSecondary,
+  statusLabel,
+  productsLabel,
+  startLabel,
+  deliveredLabel,
   onStart,
   onDelivered
 }: {
   order: DeliveryOrder;
+  brandPrimary: string;
+  brandSecondary: string;
+  statusLabel: string;
+  productsLabel: string;
+  startLabel: string;
+  deliveredLabel: string;
   onStart: () => Promise<void>;
   onDelivered: () => Promise<void>;
 }) => (
   <View style={styles.orderCard}>
     <View style={styles.orderTop}>
       <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
-      <Text style={styles.status}>{orderStatusLabel[order.status]}</Text>
+      <Text style={[styles.status, { color: brandPrimary }]}>{statusLabel}</Text>
       <Text style={styles.orderTotal}>{formatCurrency(order.total)}</Text>
     </View>
 
@@ -294,6 +314,7 @@ const OrderCard = ({
     <Text style={styles.phone}>{order.customerPhone}</Text>
 
     <View style={styles.itemsBox}>
+      <Text style={styles.itemsTitle}>{productsLabel}</Text>
       {order.items.map((item) => (
         <Text key={item.id} style={styles.itemText}>
           {item.quantity} x {item.name}
@@ -314,20 +335,20 @@ const OrderCard = ({
       </Pressable>
 
       <Pressable
-        style={styles.phoneButton}
+        style={[styles.phoneButton, { backgroundColor: `${brandSecondary}18` }]}
         onPress={() => void Linking.openURL(`tel:${order.customerPhone.replace(/\s+/g, "")}`)}
       >
-        <Text style={styles.secondaryButtonText}>Llamar cliente</Text>
+        <Text style={[styles.secondaryButtonText, { color: brandSecondary }]}>Llamar cliente</Text>
       </Pressable>
 
       {order.status !== "en_route" ? (
-        <Pressable style={styles.primaryButton} onPress={() => void onStart()}>
-          <Text style={styles.primaryButtonText}>En camino</Text>
+        <Pressable style={[styles.primaryButton, { backgroundColor: brandPrimary }]} onPress={() => void onStart()}>
+          <Text style={styles.primaryButtonText}>{startLabel}</Text>
         </Pressable>
       ) : null}
 
-      <Pressable style={styles.successButton} onPress={() => void onDelivered()}>
-        <Text style={styles.primaryButtonText}>Entregado</Text>
+      <Pressable style={[styles.successButton, { backgroundColor: brandSecondary }]} onPress={() => void onDelivered()}>
+        <Text style={styles.primaryButtonText}>{deliveredLabel}</Text>
       </Pressable>
     </View>
   </View>
@@ -468,6 +489,11 @@ const styles = StyleSheet.create({
   itemText: {
     color: "#4b5974",
     marginBottom: 4
+  },
+  itemsTitle: {
+    fontWeight: "800",
+    color: "#21324f",
+    marginBottom: 6
   },
   buttonStack: {
     gap: 10

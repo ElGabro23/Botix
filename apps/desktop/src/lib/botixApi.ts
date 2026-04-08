@@ -2,6 +2,7 @@ import { deleteApp, initializeApp } from "firebase/app";
 import {
   collection,
   doc,
+  getDoc,
   limit,
   onSnapshot,
   orderBy,
@@ -29,6 +30,7 @@ import type {
   OrderStatus,
   PaymentMethod
 } from "@botix/shared";
+import { resolveBusinessProfile } from "@botix/shared";
 import { couriersPath, customersPath, liveTrackingPath, ordersPath } from "@botix/firebase-core";
 import { firebaseClient } from "./firebase";
 
@@ -101,20 +103,12 @@ const countersRef = (businessId: string) => doc(firebaseClient.db, "businesses",
 const trackingSessionRef = (token: string) => doc(firebaseClient.db, "trackingSessions", token);
 const businessRef = (businessId: string) => doc(firebaseClient.db, "businesses", businessId);
 
-const normalizeBusinessProfile = (businessId: string, value?: Partial<BusinessProfile> | null): BusinessProfile => ({
-  id: businessId,
-  businessId,
-  businessName: value?.businessName ?? businessId,
-  subscriptionStatus: value?.subscriptionStatus ?? "active",
-  accessEnabled: value?.accessEnabled ?? true,
-  plan: value?.plan ?? "standard",
-  monthlyPrice: value?.monthlyPrice ?? 0,
-  currentPeriodEnd: value?.currentPeriodEnd,
-  graceUntil: value?.graceUntil,
-  billingContactEmail: value?.billingContactEmail,
-  billingNote: value?.billingNote,
-  supportPhone: value?.supportPhone
-});
+const normalizeBusinessProfile = (businessId: string, value?: Partial<BusinessProfile> | null): BusinessProfile =>
+  resolveBusinessProfile({
+    id: businessId,
+    businessId,
+    ...value
+  });
 
 export const subscribeUserProfile = (
   userId: string,
@@ -142,6 +136,43 @@ export const updateBusinessSubscription = async (
   await updateDoc(businessRef(businessId), {
     ...withoutUndefined(patch as Record<string, unknown>),
     updatedAt: nowIso()
+  });
+};
+
+export const saveBusinessProfile = async (
+  input: Pick<BusinessProfile, "businessId" | "businessName"> &
+    Partial<
+      Pick<
+        BusinessProfile,
+        | "businessType"
+        | "brandName"
+        | "logoAsset"
+        | "logoUrl"
+        | "theme"
+        | "labels"
+        | "enabledModules"
+        | "orderStatuses"
+        | "subscriptionStatus"
+        | "accessEnabled"
+        | "plan"
+        | "monthlyPrice"
+        | "billingContactEmail"
+        | "billingNote"
+      >
+    >
+) => {
+  const resolved = resolveBusinessProfile(input);
+  await updateDoc(businessRef(input.businessId), {
+    ...resolved,
+    updatedAt: nowIso()
+  }).catch(async () => {
+    await runTransaction(firebaseClient.db, async (transaction) => {
+      transaction.set(businessRef(input.businessId), {
+        ...resolved,
+        createdAt: nowIso(),
+        updatedAt: nowIso()
+      });
+    });
   });
 };
 
@@ -325,6 +356,7 @@ export const createDeliveryOrder = async (
     const orderRef = doc(collection(firebaseClient.db, ordersPath(user.businessId)));
     const counterRef = countersRef(user.businessId);
     const inventoryRef = inventoryDocRef(user.businessId);
+    const businessDocRef = businessRef(user.businessId);
     const customerRef = input.customerId
       ? doc(firebaseClient.db, customersPath(user.businessId), input.customerId)
       : doc(
@@ -336,7 +368,8 @@ export const createDeliveryOrder = async (
       ? doc(firebaseClient.db, couriersPath(user.businessId), input.assignedCourierId)
       : null;
 
-    const [customerSnap, counterSnap, inventorySnap, courierSnap] = await Promise.all([
+    const [businessSnap, customerSnap, counterSnap, inventorySnap, courierSnap] = await Promise.all([
+      transaction.get(businessDocRef),
       transaction.get(customerRef),
       transaction.get(counterRef),
       transaction.get(inventoryRef),
@@ -359,6 +392,9 @@ export const createDeliveryOrder = async (
           totalSpent: 0
         } satisfies Customer);
     const counters = (counterSnap.exists() ? (counterSnap.data() as CountersDocument) : {}) ?? {};
+    const business = resolveBusinessProfile(
+      businessSnap.exists() ? ({ id: businessSnap.id, ...businessSnap.data() } as Partial<BusinessProfile>) : { businessId: user.businessId }
+    );
     const inventory = inventorySnap.exists()
       ? (((inventorySnap.data() as InventoryCatalogDocument).items ?? []) as InventoryItem[])
       : [];
@@ -374,6 +410,8 @@ export const createDeliveryOrder = async (
     const total = subtotal + input.deliveryFee;
     const timestamp = nowIso();
     const nextNumber = (counters.deliveryOrderSequence ?? 1023) + 1;
+    const initialStatus =
+      business.businessType === "liquor_store" ? (courier ? "assigned" : "pending") : "pending";
 
     transaction.set(
       orderRef,
@@ -389,7 +427,7 @@ export const createDeliveryOrder = async (
         deliveryFee: input.deliveryFee,
         total,
         paymentMethod: input.paymentMethod,
-        status: courier ? "assigned" : "pending",
+        status: initialStatus,
         assignedCourierId: courier?.id,
         assignedCourierName: courier?.displayName,
         createdBy: user.id,
@@ -558,11 +596,26 @@ export const assignCourier = async (
   orderId: string,
   courier: Pick<CourierProfile, "id" | "displayName">
 ) => {
+  const [businessSnapshot, orderSnapshot] = await Promise.all([
+    getDoc(businessRef(businessId)),
+    getDoc(doc(firebaseClient.db, ordersPath(businessId), orderId))
+  ]);
+  const business = resolveBusinessProfile(
+    businessSnapshot.exists() ? ({ id: businessSnapshot.id, ...businessSnapshot.data() } as Partial<BusinessProfile>) : { businessId }
+  );
+  const currentOrder = orderSnapshot.exists() ? (orderSnapshot.data() as DeliveryOrder) : null;
+  const nextStatus =
+    business.businessType === "liquor_store"
+      ? "assigned"
+      : currentOrder?.status === "pending"
+        ? "preparing"
+        : currentOrder?.status ?? "pending";
+
   await Promise.all([
     updateDoc(doc(firebaseClient.db, ordersPath(businessId), orderId), {
       assignedCourierId: courier.id,
       assignedCourierName: courier.displayName,
-      status: "assigned",
+      status: nextStatus,
       updatedAt: nowIso()
     }),
     updateDoc(doc(firebaseClient.db, couriersPath(businessId), courier.id), {

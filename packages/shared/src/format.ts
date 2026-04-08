@@ -3,6 +3,7 @@ import type { OrderStatus } from "./domain";
 export const orderStatusLabel: Record<OrderStatus, string> = {
   pending: "Pendiente",
   preparing: "Preparando",
+  ready: "Listo",
   assigned: "Asignado",
   en_route: "En camino",
   delivered: "Entregado",
@@ -13,6 +14,7 @@ export const orderStatusLabel: Record<OrderStatus, string> = {
 export const orderStatusColor: Record<OrderStatus, string> = {
   pending: "#f6c453",
   preparing: "#4d8dff",
+  ready: "#8f7cff",
   assigned: "#8166ff",
   en_route: "#3f9bff",
   delivered: "#54b07a",
@@ -34,4 +36,3 @@ export const formatCompactDateTime = (value?: string) => {
     timeStyle: "short"
   }).format(new Date(value));
 };
-

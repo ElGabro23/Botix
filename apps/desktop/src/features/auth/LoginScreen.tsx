@@ -47,8 +47,8 @@ export const LoginScreen = ({ onSubmit }: Props) => {
         <div className="login-brand">
           <img src={assetUrl("brand/botix.jpg")} alt="Botix" />
           <div>
-            <h1>BOTIX</h1>
-            <p>Sistema para botillerias con delivery en tiempo real</p>
+            <h1>X Commerce</h1>
+            <p>Plataforma multi-rubro para delivery, caja y operacion diaria</p>
           </div>
         </div>
 

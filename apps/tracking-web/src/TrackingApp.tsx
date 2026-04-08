@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import type { TrackingSession } from "@botix/shared";
-import { formatCompactDateTime, orderStatusLabel } from "@botix/shared";
+import type { BusinessProfile, TrackingSession } from "@botix/shared";
+import { formatCompactDateTime, getBrandAssetPath, getOrderStatusMeta, resolveBusinessProfile } from "@botix/shared";
 import { createFirebaseClient } from "@botix/firebase-core";
 import { assetUrl } from "./lib/assetUrl";
 
@@ -28,6 +28,9 @@ const firebaseClient = createFirebaseClient({
 export const TrackingApp = () => {
   const token = useMemo(() => new URLSearchParams(window.location.search).get("token"), []);
   const [session, setSession] = useState<TrackingSession | null>(null);
+  const [business, setBusiness] = useState<BusinessProfile | null>(null);
+  const mapRef = useRef<HTMLIFrameElement | null>(null);
+  const businessConfig = useMemo(() => resolveBusinessProfile(business), [business]);
   const hasCoordinates =
     typeof session?.lat === "number" &&
     Number.isFinite(session.lat) &&
@@ -51,14 +54,22 @@ export const TrackingApp = () => {
     });
   }, [token]);
 
+  useEffect(() => {
+    if (!session?.businessId) return;
+
+    return onSnapshot(doc(firebaseClient.db, "businesses", session.businessId), (snap) => {
+      setBusiness(snap.exists() ? ({ id: snap.id, ...snap.data() } as BusinessProfile) : null);
+    });
+  }, [session?.businessId]);
+
   return (
     <main className="tracking-shell">
       <section className="tracking-card">
         <div className="brand">
-          <img src={assetUrl("brand/botix.jpg")} alt="Botix" />
+          <img src={assetUrl(getBrandAssetPath(businessConfig.logoAsset))} alt={businessConfig.brandName} />
           <div>
-            <strong>BOTIX Tracking</strong>
-            <span>Seguimiento en tiempo real</span>
+            <strong>{businessConfig.brandName} Tracking</strong>
+            <span>{businessConfig.labels.tracking} en tiempo real</span>
           </div>
         </div>
 
@@ -74,7 +85,7 @@ export const TrackingApp = () => {
             </div>
             <div className="tracking-line">
               <span>Estado</span>
-              <strong>{orderStatusLabel[session.status]}</strong>
+              <strong>{getOrderStatusMeta(businessConfig.orderStatuses, session.status).label}</strong>
             </div>
             <div className="tracking-line">
               <span>Repartidor</span>
@@ -94,6 +105,8 @@ export const TrackingApp = () => {
                   <iframe
                     title="Mapa de seguimiento"
                     src={mapBounds}
+                    key={mapBounds}
+                    ref={mapRef}
                     style={{ width: "100%", height: 260, border: 0, borderRadius: 18 }}
                     loading="lazy"
                   />

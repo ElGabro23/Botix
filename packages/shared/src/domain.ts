@@ -1,14 +1,57 @@
 export type UserRole = "superadmin" | "admin" | "cashier" | "courier";
 export type SubscriptionStatus = "active" | "overdue" | "suspended" | "cancelled";
+export type BusinessType = "liquor_store" | "sushi" | "burger" | "pizza";
+export type BrandAssetKey = "botix" | "sushix" | "burgerix" | "pizzix";
+export type ModuleKey =
+  | "counter"
+  | "orders"
+  | "inventory"
+  | "customers"
+  | "couriers"
+  | "reports"
+  | "expenses"
+  | "delivery"
+  | "kitchen";
 
 export type OrderStatus =
   | "pending"
   | "preparing"
+  | "ready"
   | "assigned"
   | "en_route"
   | "delivered"
   | "cancelled"
   | "incident";
+
+export interface BusinessTheme {
+  primary: string;
+  secondary: string;
+  accent: string;
+  surfaceTint: string;
+}
+
+export interface BusinessLabels {
+  appName: string;
+  tagline: string;
+  counter: string;
+  orders: string;
+  inventory: string;
+  customers: string;
+  couriers: string;
+  reports: string;
+  expenses: string;
+  counterSale: string;
+  deliveryOrders: string;
+  products: string;
+  tracking: string;
+  kitchen: string;
+}
+
+export interface BusinessOrderStatusConfig {
+  key: OrderStatus;
+  label: string;
+  color: string;
+}
 
 export type PaymentMethod = "cash" | "card" | "transfer" | "mixed";
 
@@ -27,6 +70,14 @@ export interface BusinessProfile {
   id: string;
   businessId: string;
   businessName: string;
+  businessType?: BusinessType;
+  brandName?: string;
+  logoAsset?: BrandAssetKey;
+  logoUrl?: string;
+  theme?: Partial<BusinessTheme>;
+  labels?: Partial<BusinessLabels>;
+  enabledModules?: ModuleKey[];
+  orderStatuses?: BusinessOrderStatusConfig[];
   subscriptionStatus: SubscriptionStatus;
   accessEnabled: boolean;
   plan?: string;

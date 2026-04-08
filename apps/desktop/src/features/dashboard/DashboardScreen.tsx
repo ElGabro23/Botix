@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent } from "react";
 import {
   Bell,
   Bike,
@@ -25,7 +25,7 @@ import type {
   PaymentMethod,
   SubscriptionStatus
 } from "@botix/shared";
-import { formatCompactDateTime, formatCurrency, orderStatusColor, orderStatusLabel } from "@botix/shared";
+import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBrandAssetPath, getBusinessPreset, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
 import {
   assignCourier,
   createCourierAccount,
@@ -34,6 +34,7 @@ import {
   createTrackingLink,
   importInventoryItems,
   registerCounterSale,
+  saveBusinessProfile,
   saveExpenseRecord,
   saveInventoryItem,
   subscribeBusinesses,
@@ -59,15 +60,15 @@ type SummaryState = DaySummary & {
   netProfitTotal: number;
 };
 
-const sections: Array<{ key: SectionKey; label: string; icon: typeof LayoutGrid }> = [
-  { key: "overview", label: "Caja Meson", icon: LayoutGrid },
-  { key: "orders", label: "Pedidos", icon: PackageCheck },
-  { key: "inventory", label: "Inventario", icon: Boxes },
-  { key: "customers", label: "Clientes", icon: Users },
-  { key: "couriers", label: "Repartidores", icon: Bike },
-  { key: "expenses", label: "Gastos", icon: FileText },
-  { key: "reports", label: "Reportes", icon: FileText },
-  { key: "licenses", label: "Licencias", icon: FileText }
+const sections: Array<{ key: SectionKey; icon: typeof LayoutGrid }> = [
+  { key: "overview", icon: LayoutGrid },
+  { key: "orders", icon: PackageCheck },
+  { key: "inventory", icon: Boxes },
+  { key: "customers", icon: Users },
+  { key: "couriers", icon: Bike },
+  { key: "expenses", icon: FileText },
+  { key: "reports", icon: FileText },
+  { key: "licenses", icon: FileText }
 ];
 
 const initialSummary: SummaryState = {
@@ -112,6 +113,12 @@ const initialExpenseDraft = {
   amount: ""
 };
 
+const initialBusinessDraft = {
+  businessId: "",
+  businessName: "",
+  businessType: "liquor_store" as BusinessType
+};
+
 type Props = {
   user: AppUser;
   business: BusinessProfile | null;
@@ -143,6 +150,7 @@ const sumCost = (catalog: InventoryItem[], cart: CartItem[]) =>
   }, 0);
 
 export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
+  const businessConfig = useMemo(() => resolveBusinessProfile(business), [business]);
   const configuredTrackingBaseUrl = import.meta.env.VITE_TRACKING_BASE_URL;
   const trackingBaseUrl =
     !configuredTrackingBaseUrl || configuredTrackingBaseUrl.includes("localhost")
@@ -179,6 +187,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const [orderCustomerDraft, setOrderCustomerDraft] = useState(initialCustomerDraft);
   const [courierDraft, setCourierDraft] = useState(initialCourierDraft);
   const [expenseDraft, setExpenseDraft] = useState(initialExpenseDraft);
+  const [businessDraft, setBusinessDraft] = useState(initialBusinessDraft);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isAdmin = user.role === "admin";
   const isCashier = user.role === "cashier";
@@ -203,6 +212,16 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     typeof tracking?.lng === "number" &&
     Number.isFinite(tracking.lng);
   const isTrackingActive = tracking?.active === true;
+  const themeVars = useMemo(
+    () =>
+      ({
+        "--brand-primary": businessConfig.theme.primary,
+        "--brand-secondary": businessConfig.theme.secondary,
+        "--brand-accent": businessConfig.theme.accent,
+        "--brand-surface": businessConfig.theme.surfaceTint
+      }) as CSSProperties,
+    [businessConfig]
+  );
 
   useEffect(() => {
     setSelectedOrderId((current) => current ?? orders[0]?.id);
@@ -225,11 +244,45 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     () =>
       sections.filter((section) => {
         if (isSuperAdmin) return section.key === "licenses";
-        if (isAdmin) return section.key !== "licenses";
-        return ["overview", "orders", "inventory", "customers"].includes(section.key);
+        const moduleMap = {
+          overview: "counter",
+          orders: "orders",
+          inventory: "inventory",
+          customers: "customers",
+          couriers: "couriers",
+          expenses: "expenses",
+          reports: "reports",
+          licenses: "licenses"
+        } as const;
+        if (isAdmin) return section.key !== "licenses" && businessConfig.enabledModules.includes(moduleMap[section.key]);
+        return ["overview", "orders", "inventory", "customers"].includes(section.key) && businessConfig.enabledModules.includes(moduleMap[section.key]);
       }),
-    [isAdmin, isSuperAdmin]
+    [businessConfig.enabledModules, isAdmin, isSuperAdmin]
   );
+
+  const sectionLabel = (key: SectionKey) => {
+    switch (key) {
+      case "overview":
+        return businessConfig.labels.counter;
+      case "orders":
+        return businessConfig.labels.orders;
+      case "inventory":
+        return businessConfig.labels.inventory;
+      case "customers":
+        return businessConfig.labels.customers;
+      case "couriers":
+        return businessConfig.labels.couriers;
+      case "expenses":
+        return businessConfig.labels.expenses;
+      case "reports":
+        return businessConfig.labels.reports;
+      case "licenses":
+        return "Licencias";
+      default:
+        return key;
+    }
+  };
+  const businessPresets = useMemo(() => getAllBusinessPresets(), []);
 
   useEffect(() => {
     if (!visibleSections.some((section) => section.key === activeSection)) {
@@ -497,6 +550,64 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     }
   };
 
+  const createBusiness = async () => {
+    if (!businessDraft.businessId || !businessDraft.businessName) {
+      setNotice("Completa ID y nombre del negocio.");
+      return;
+    }
+    const preset = getBusinessPreset(businessDraft.businessType);
+    setSaving("business");
+    try {
+      await saveBusinessProfile({
+        businessId: businessDraft.businessId.trim(),
+        businessName: businessDraft.businessName.trim(),
+        businessType: businessDraft.businessType,
+        brandName: preset.brandName,
+        logoAsset: preset.logoAsset,
+        theme: preset.theme,
+        labels: preset.labels,
+        enabledModules: preset.enabledModules,
+        orderStatuses: preset.orderStatuses,
+        subscriptionStatus: "active",
+        accessEnabled: true,
+        plan: "standard",
+        monthlyPrice: 29990
+      });
+      setBusinessDraft(initialBusinessDraft);
+      setNotice("Negocio creado correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible crear el negocio.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const applyBusinessPreset = async (entry: BusinessProfile, businessType: BusinessType) => {
+    const preset = getBusinessPreset(businessType);
+    try {
+      await saveBusinessProfile({
+        businessId: entry.businessId,
+        businessName: entry.businessName,
+        businessType,
+        brandName: preset.brandName,
+        logoAsset: preset.logoAsset,
+        theme: preset.theme,
+        labels: preset.labels,
+        enabledModules: preset.enabledModules,
+        orderStatuses: preset.orderStatuses,
+        subscriptionStatus: entry.subscriptionStatus,
+        accessEnabled: entry.accessEnabled,
+        plan: entry.plan,
+        monthlyPrice: entry.monthlyPrice,
+        billingContactEmail: entry.billingContactEmail,
+        billingNote: entry.billingNote
+      });
+      setNotice("Rubro y branding actualizados correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible actualizar el rubro.");
+    }
+  };
+
   const downloadInventoryTemplate = () => {
     const csv = [
       "nombre,categoria,sku,precio,costo,stock",
@@ -507,7 +618,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "plantilla-inventario-botix.csv";
+    anchor.download = `plantilla-${businessConfig.brandName.toLowerCase()}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -552,11 +663,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     const printable = window.open("", "_blank", "width=900,height=800");
     if (!printable) return;
     printable.document.write(`
-      <html><head><title>Reporte BOTIX</title><style>
+      <html><head><title>Reporte ${businessConfig.brandName}</title><style>
       body{font-family:Segoe UI,sans-serif;padding:32px;color:#20314c}
       table{width:100%;border-collapse:collapse}td,th{padding:12px;border-bottom:1px solid #dfe5f5;text-align:left}
       </style></head><body>
-      <h1>Reporte mensual BOTIX</h1>
+      <h1>Reporte mensual ${businessConfig.brandName}</h1>
       <p>Negocio: ${user.businessId}</p>
       <p>Fecha: ${new Date().toLocaleString("es-CL")}</p>
       <table><tbody>
@@ -575,13 +686,13 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   };
 
   return (
-    <div className="desktop-shell compact-shell">
+    <div className="desktop-shell compact-shell" style={themeVars}>
       <header className="topbar compact-topbar">
         <div className="brand-wrap">
-          <img src={assetUrl("brand/botix.jpg")} alt="Botix" />
+          <img src={assetUrl(getBrandAssetPath(businessConfig.logoAsset))} alt={businessConfig.brandName} />
           <div>
-            <h1>BOTIX</h1>
-            <span>Sistema para Botillerias</span>
+            <h1>{businessConfig.brandName}</h1>
+            <span>{businessConfig.labels.tagline}</span>
           </div>
         </div>
 
@@ -596,7 +707,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                 type="button"
               >
                 <Icon size={15} />
-                {section.label}
+                {sectionLabel(section.key)}
               </button>
             );
           })}
@@ -607,7 +718,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
           <div>
             <strong>{user.displayName}</strong>
             <span>
-              {isSuperAdmin ? "Panel Superadmin" : business?.businessName ?? user.businessId}
+              {isSuperAdmin ? "Panel Superadmin" : businessConfig.businessName}
               {!isSuperAdmin ? ` | ${business?.subscriptionStatus ?? "active"}` : ""}
             </span>
           </div>
@@ -622,11 +733,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       {activeSection === "overview" ? (
         <main className="module-layout module-layout--delivery">
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Venta Meson</div>
+            <div className="section-title compact-title">{businessConfig.labels.counterSale}</div>
             <div className="inline-field">
               <Search size={15} />
               <input
-                placeholder="Buscar producto por nombre o SKU"
+                placeholder={`Buscar ${businessConfig.labels.products.toLowerCase()} por nombre o SKU`}
                 value={counterSearch}
                 onChange={(event) => setCounterSearch(event.target.value)}
                 onKeyDown={(event) =>
@@ -672,7 +783,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
               <div className="metric-tile compact-tile"><span>Ventas</span><strong>{formatCurrency(summary.salesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Meson</span><strong>{formatCurrency(summary.counterSalesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Delivery</span><strong>{formatCurrency(summary.deliveryTotal)}</strong></div>
-              {isAdmin ? <div className="metric-tile compact-tile"><span>Ganancia</span><strong>{formatCurrency(summary.profitTotal)}</strong></div> : null}
+              {isAdmin ? <div className="metric-tile compact-tile"><span>Utilidad</span><strong>{formatCurrency(summary.profitTotal)}</strong></div> : null}
             </div>
             <div className="section-title compact-title compact-title--spaced">Ultimas ventas</div>
             <div className="compact-table">
@@ -693,7 +804,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       {activeSection === "orders" ? (
         <main className="module-layout module-layout--delivery">
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Crear pedido delivery</div>
+            <div className="section-title compact-title">Crear {businessConfig.labels.deliveryOrders.toLowerCase()}</div>
             <select value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}>
               <option value="">Selecciona cliente registrado</option>
               <option value={newCustomerOption}>Crear cliente nuevo</option>
@@ -726,7 +837,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
             <div className="inline-field">
               <Search size={15} />
               <input
-                placeholder="Buscar producto del pedido"
+                placeholder={`Buscar ${businessConfig.labels.products.toLowerCase()} del pedido`}
                 value={orderSearch}
                 onChange={(event) => setOrderSearch(event.target.value)}
                 onKeyDown={(event) =>
@@ -776,7 +887,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
           </article>
 
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Pedidos activos</div>
+            <div className="section-title compact-title">{businessConfig.labels.orders} activos</div>
             <div className="stack-list compact-stack compact-stack--orders">
               {orders.map((order) => (
                 <button
@@ -790,11 +901,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                     <span
                       className="status-pill"
                       style={{
-                        backgroundColor: `${orderStatusColor[order.status]}20`,
-                        color: orderStatusColor[order.status]
+                        backgroundColor: `${getOrderStatusMeta(businessConfig.orderStatuses, order.status).color}20`,
+                        color: getOrderStatusMeta(businessConfig.orderStatuses, order.status).color
                       }}
                     >
-                      {orderStatusLabel[order.status]}
+                      {getOrderStatusMeta(businessConfig.orderStatuses, order.status).label}
                     </span>
                     <strong>{formatCurrency(order.total)}</strong>
                   </div>
@@ -829,14 +940,28 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                       </option>
                     ))}
                   </select>
-                  <button className="ghost-button compact-ghost" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "preparing")}>Preparando</button>
-                  <button className="ghost-button compact-ghost" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "delivered")}>Entregado</button>
-                  <button className="ghost-button compact-ghost danger-outline" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "cancelled")}>Cancelar</button>
+                  {businessConfig.businessType !== "liquor_store" ? (
+                    <>
+                      <button className="ghost-button compact-ghost" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "preparing")}>Preparando</button>
+                      <button className="ghost-button compact-ghost" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "ready")}>Listo</button>
+                    </>
+                  ) : (
+                    <button className="ghost-button compact-ghost" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "assigned")}>Asignado</button>
+                  )}
+                  <button className="ghost-button compact-ghost" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "en_route")}>
+                    {getOrderStatusMeta(businessConfig.orderStatuses, "en_route").label}
+                  </button>
+                  <button className="ghost-button compact-ghost" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "delivered")}>
+                    {getOrderStatusMeta(businessConfig.orderStatuses, "delivered").label}
+                  </button>
+                  <button className="ghost-button compact-ghost danger-outline" onClick={() => void updateOrderStatus(user.businessId, selectedOrder.id, "cancelled")}>
+                    {getOrderStatusMeta(businessConfig.orderStatuses, "cancelled").label}
+                  </button>
                 </div>
                 <div className="tracking-box compact-tracking">
                   <div className="tracking-box__title">
                     <MapPinned size={15} />
-                    Seguimiento {isTrackingActive ? "activo" : "inactivo"}
+                    {businessConfig.labels.tracking} {isTrackingActive ? "activo" : "inactivo"}
                   </div>
                   {tracking && hasTrackingCoordinates ? (
                     <span>{tracking.lat.toFixed(5)}, {tracking.lng.toFixed(5)} | {formatCompactDateTime(tracking.updatedAt)}</span>
@@ -858,7 +983,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
         <main className="module-layout">
           {isAdmin ? (
             <article className="panel-card compact-card">
-              <div className="section-title compact-title">Inventario</div>
+            <div className="section-title compact-title">{businessConfig.labels.inventory}</div>
               <div className="field-grid compact-grid">
                 <input aria-label="Nombre del producto" placeholder="Nombre del producto" value={inventoryDraft.name} onChange={(event) => setInventoryDraft((current) => ({ ...current, name: event.target.value }))} />
                 <input aria-label="Categoria del producto" placeholder="Categoria" value={inventoryDraft.category} onChange={(event) => setInventoryDraft((current) => ({ ...current, category: event.target.value }))} />
@@ -883,10 +1008,10 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
           ) : null}
 
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">{isCashier ? "Inventario disponible" : "Catalogo"}</div>
+            <div className="section-title compact-title">{isCashier ? `${businessConfig.labels.inventory} disponible` : businessConfig.labels.products}</div>
             <div className="inventory-table">
               <div className="inventory-row inventory-row--head">
-                <span>Producto</span>
+                <span>{businessConfig.labels.products}</span>
                 <span>SKU</span>
                 <span>Precio</span>
                 {isAdmin ? <span>Costo</span> : null}
@@ -909,7 +1034,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       {activeSection === "customers" ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Registrar cliente</div>
+            <div className="section-title compact-title">Registrar {businessConfig.labels.customers.slice(0, -1).toLowerCase()}</div>
             <div className="field-grid compact-grid">
               <input placeholder="Nombre" value={customerDraft.name} onChange={(event) => setCustomerDraft((current) => ({ ...current, name: event.target.value }))} />
               <input placeholder="Telefono" value={customerDraft.phone} onChange={(event) => setCustomerDraft((current) => ({ ...current, phone: event.target.value }))} />
@@ -925,7 +1050,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
           </article>
 
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Clientes registrados</div>
+            <div className="section-title compact-title">{businessConfig.labels.customers} registrados</div>
             <div className="compact-table">
               {customers.map((customer) => (
                 <div className="compact-row" key={customer.id}>
@@ -947,7 +1072,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       {activeSection === "couriers" && isAdmin ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Agregar repartidor</div>
+            <div className="section-title compact-title">Agregar {businessConfig.labels.couriers.slice(0, -1).toLowerCase()}</div>
             <div className="field-grid compact-grid">
               <input placeholder="Nombre" value={courierDraft.displayName} onChange={(event) => setCourierDraft((current) => ({ ...current, displayName: event.target.value }))} />
               <input placeholder="Correo" value={courierDraft.email} onChange={(event) => setCourierDraft((current) => ({ ...current, email: event.target.value }))} />
@@ -960,7 +1085,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
           </article>
 
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Equipo de reparto</div>
+            <div className="section-title compact-title">{businessConfig.labels.couriers}</div>
             <div className="compact-table">
               {couriers.map((courier) => (
                 <div className="compact-row" key={courier.id}>
@@ -982,7 +1107,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       {activeSection === "reports" && isAdmin ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Reporte mensual</div>
+            <div className="section-title compact-title">Reporte mensual {businessConfig.brandName}</div>
             <div className="report-grid">
               <div className="metric-tile compact-tile"><span>Ventas</span><strong>{formatCurrency(summary.salesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Utilidad</span><strong>{formatCurrency(summary.profitTotal)}</strong></div>
@@ -1060,13 +1185,44 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       {activeSection === "licenses" && isSuperAdmin ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
+            <div className="section-title compact-title">Crear negocio</div>
+            <div className="field-grid compact-grid">
+              <input
+                placeholder="ID del negocio"
+                value={businessDraft.businessId}
+                onChange={(event) => setBusinessDraft((current) => ({ ...current, businessId: event.target.value.toLowerCase().replace(/\s+/g, "-") }))}
+              />
+              <input
+                placeholder="Nombre comercial"
+                value={businessDraft.businessName}
+                onChange={(event) => setBusinessDraft((current) => ({ ...current, businessName: event.target.value }))}
+              />
+              <select
+                className="field-span"
+                value={businessDraft.businessType}
+                onChange={(event) => setBusinessDraft((current) => ({ ...current, businessType: event.target.value as BusinessType }))}
+              >
+                {businessPresets.map((preset) => (
+                  <option key={preset.businessType} value={preset.businessType}>
+                    {preset.brandName} | {preset.businessType}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="action-button action-button--primary compact-action" onClick={() => void createBusiness()}>
+              {saving === "business" ? "Creando..." : "Crear negocio"}
+            </button>
+          </article>
+
+          <article className="panel-card compact-card">
             <div className="section-title compact-title">Panel comercial</div>
             <div className="compact-table">
               {businesses.map((entry) => (
                 <div className="compact-row" key={entry.id} style={{ alignItems: "start" }}>
                   <div style={{ width: "100%" }}>
-                    <strong>{entry.businessName}</strong>
+                    <strong>{entry.brandName ?? entry.businessName}</strong>
                     <span>{entry.businessId}</span>
+                    <span>Rubro: {entry.businessType ?? "liquor_store"}</span>
                     <span>
                       Estado: {entry.subscriptionStatus} | Acceso: {entry.accessEnabled ? "habilitado" : "bloqueado"}
                     </span>
@@ -1074,6 +1230,16 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                     <span>Vence: {entry.currentPeriodEnd ?? "Sin fecha"}</span>
                   </div>
                   <div className="compact-row__meta" style={{ minWidth: 260 }}>
+                    <select
+                      value={entry.businessType ?? "liquor_store"}
+                      onChange={(event) => void applyBusinessPreset(entry, event.target.value as BusinessType)}
+                    >
+                      {businessPresets.map((preset) => (
+                        <option key={preset.businessType} value={preset.businessType}>
+                          {preset.brandName}
+                        </option>
+                      ))}
+                    </select>
                     <select
                       value={entry.subscriptionStatus}
                       onChange={(event) =>
