@@ -25,12 +25,10 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install --workspaces=false
-        working-directory: apps/desktop
+        run: npm install
 
       - name: Build renderer
-        run: npx vite build
-        working-directory: apps/desktop
+        run: npm run build:renderer -w apps/desktop
         env:
           VITE_FIREBASE_API_KEY: AIzaSyBIy_RMiEIyYlZWYiuo1UdQliTln4smHx8
           VITE_FIREBASE_AUTH_DOMAIN: botix-e493b.firebaseapp.com
@@ -42,12 +40,10 @@ jobs:
           VITE_TRACKING_BASE_URL: https://botix-e493b.web.app
 
       - name: Build electron main process
-        run: npx tsc -p tsconfig.electron.json
-        working-directory: apps/desktop
+        run: npm run build:electron -w apps/desktop
 
       - name: Package desktop installer
-        run: npx electron-builder --win nsis
-        working-directory: apps/desktop
+        run: npm run dist:win -w apps/desktop
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
