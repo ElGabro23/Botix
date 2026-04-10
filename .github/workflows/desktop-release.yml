@@ -44,5 +44,5 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: botix-desktop-installer
+          name: hunix-desktop-installer
           path: apps/desktop/release/*.exe
