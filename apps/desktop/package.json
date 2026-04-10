@@ -1,6 +1,6 @@
 {
-  "name": "@hunix/desktop",
-  "version": "0.2.4",
+  "name": "@botix/desktop",
+  "version": "0.2.5",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
@@ -10,6 +10,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "npm run build:renderer && npm run build:electron",
     "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:win:package": "electron-builder --win nsis",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
   },
   "dependencies": {
@@ -31,7 +32,7 @@
     "vite": "^6.3.5"
   },
   "build": {
-    "appId": "cl.hunix.desktop",
+    "appId": "cl.botix.desktop",
     "productName": "Hunix",
     "electronVersion": "35.2.2",
     "directories": {
