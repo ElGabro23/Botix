@@ -25,7 +25,7 @@ import type {
   PaymentMethod,
   SubscriptionStatus
 } from "@botix/shared";
-import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBusinessPreset, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
+import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBrandAssetPath, getBusinessPreset, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
 import {
   assignCourier,
   createBusinessAccount,
@@ -219,6 +219,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const topbarTagline = isSuperAdmin
     ? "Plataforma multi-rubro para administracion comercial"
     : `${businessConfig.brandName} | ${businessConfig.labels.tagline}`;
+  const topbarLogo = isSuperAdmin ? "brand/hunix-icon.png" : assetUrl(getBrandAssetPath(businessConfig.logoAsset));
 
   useEffect(() => subscribeOrders(user.businessId, setOrders), [user.businessId]);
   useEffect(() => subscribeCustomers(user.businessId, setCustomers), [user.businessId]);
@@ -730,7 +731,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     <div className="desktop-shell compact-shell" style={themeVars}>
       <header className="topbar compact-topbar">
         <div className="brand-wrap">
-          <img src={assetUrl("brand/hunix.png")} alt="Hunix" />
+          <img src={topbarLogo} alt={topbarName} />
           <div>
             <h1>{topbarName}</h1>
             <span>{topbarTagline}</span>

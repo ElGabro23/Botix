@@ -1,6 +1,6 @@
 {
-  "name": "@botix/desktop",
-  "version": "0.1.9",
+  "name": "@hunix/desktop",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
@@ -31,7 +31,7 @@
     "vite": "^6.3.5"
   },
   "build": {
-    "appId": "cl.botix.desktop",
+    "appId": "cl.hunix.desktop",
     "productName": "Hunix",
     "electronVersion": "35.2.2",
     "directories": {
