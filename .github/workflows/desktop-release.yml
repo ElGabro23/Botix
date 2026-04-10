@@ -28,8 +28,8 @@ jobs:
         run: npm install --workspaces=false
         working-directory: apps/desktop
 
-      - name: Build desktop installer
-        run: npm run dist:win
+      - name: Build renderer
+        run: npx vite build
         working-directory: apps/desktop
         env:
           VITE_FIREBASE_API_KEY: AIzaSyBIy_RMiEIyYlZWYiuo1UdQliTln4smHx8
@@ -40,6 +40,14 @@ jobs:
           VITE_FIREBASE_APP_ID: 1:213505703707:web:798a040c888c6b58e95dbe
           VITE_FIREBASE_MEASUREMENT_ID: G-RXFY7ZGHVY
           VITE_TRACKING_BASE_URL: https://botix-e493b.web.app
+
+      - name: Build electron main process
+        run: npx tsc -p tsconfig.electron.json
+        working-directory: apps/desktop
+
+      - name: Package desktop installer
+        run: npx electron-builder --win nsis
+        working-directory: apps/desktop
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
