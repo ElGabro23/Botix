@@ -25,7 +25,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --workspaces=false
         working-directory: apps/desktop
 
       - name: Build desktop installer
