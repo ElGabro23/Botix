@@ -40,6 +40,11 @@ const identityConverter = <T,>(): FirestoreDataConverter<T> => ({
 });
 
 const nowIso = () => new Date().toISOString();
+const addMonthsIso = (baseIso: string, months: number) => {
+  const date = new Date(baseIso);
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString();
+};
 const monthStartIso = () => {
   const date = new Date();
   date.setDate(1);
@@ -164,12 +169,12 @@ export const saveBusinessProfile = async (
 ) => {
   const resolved = resolveBusinessProfile(input);
   await updateDoc(businessRef(input.businessId), {
-    ...resolved,
+    ...withoutUndefined(resolved as Record<string, unknown>),
     updatedAt: nowIso()
   }).catch(async () => {
     await runTransaction(firebaseClient.db, async (transaction) => {
       transaction.set(businessRef(input.businessId), {
-        ...resolved,
+        ...withoutUndefined(resolved as Record<string, unknown>),
         createdAt: nowIso(),
         updatedAt: nowIso()
       });
@@ -845,9 +850,11 @@ export const createBusinessAccount = async (
     const uid = credential.user.uid;
 
     await runTransaction(firebaseClient.db, async (transaction) => {
+      const currentPeriodEnd = addMonthsIso(input.subscriptionStartedAt, 1);
       transaction.set(businessRef(businessId), {
-        ...preset,
+        ...withoutUndefined(preset as Record<string, unknown>),
         subscriptionStartedAt: input.subscriptionStartedAt,
+        currentPeriodEnd,
         subscriptionStatus: "active",
         accessEnabled: true,
         plan: "standard",

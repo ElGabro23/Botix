@@ -173,6 +173,7 @@ const sumCost = (catalog: InventoryItem[], cart: CartItem[]) =>
 
 export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const businessConfig = useMemo(() => resolveBusinessProfile(business), [business]);
+  const platformName = "Hunix";
   const configuredTrackingBaseUrl = import.meta.env.VITE_TRACKING_BASE_URL;
   const trackingBaseUrl =
     !configuredTrackingBaseUrl || configuredTrackingBaseUrl.includes("localhost")
@@ -214,6 +215,10 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const isAdmin = user.role === "admin";
   const isCashier = user.role === "cashier";
   const isSuperAdmin = user.role === "superadmin";
+  const topbarName = isSuperAdmin ? platformName : businessConfig.brandName;
+  const topbarTagline = isSuperAdmin
+    ? "Plataforma multi-rubro para administracion comercial"
+    : `${businessConfig.brandName} | ${businessConfig.labels.tagline}`;
 
   useEffect(() => subscribeOrders(user.businessId, setOrders), [user.businessId]);
   useEffect(() => subscribeCustomers(user.businessId, setCustomers), [user.businessId]);
@@ -725,10 +730,10 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     <div className="desktop-shell compact-shell" style={themeVars}>
       <header className="topbar compact-topbar">
         <div className="brand-wrap">
-          <img src={assetUrl("brand/hunix.jpeg")} alt="Hunix" />
+          <img src={assetUrl("brand/hunix.png")} alt="Hunix" />
           <div>
-            <h1>Hunix</h1>
-            <span>{businessConfig.brandName} | {businessConfig.labels.tagline}</span>
+            <h1>{topbarName}</h1>
+            <span>{topbarTagline}</span>
           </div>
         </div>
 
