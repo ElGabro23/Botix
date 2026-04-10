@@ -30,7 +30,7 @@
       "policy": "appVersion"
     },
     "android": {
-      "package": "cl.hunix.driver",
+      "package": "cl.botix.driver",
       "versionCode": 17,
       "googleServicesFile": "./google-services.json",
       "permissions": [
