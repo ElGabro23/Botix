@@ -48,7 +48,6 @@ export const LoginScreen = ({ onSubmit }: Props) => {
           <img src={assetUrl("brand/hunix-icon.png")} alt="Hunix" />
           <div>
             <h1>Hunix</h1>
-            <p>Plataforma multi-rubro para delivery, caja y operacion diaria</p>
           </div>
         </div>
 
