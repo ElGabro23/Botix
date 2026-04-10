@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "BOTIX Driver",
-    "slug": "botix-driver",
-    "scheme": "botix-driver",
+    "name": "Hunix Driver",
+    "slug": "hunix-driver",
+    "scheme": "hunix-driver",
     "version": "1.0.0",
     "newArchEnabled": false,
     "icon": "./assets/icon.png",
@@ -31,7 +31,7 @@
     },
     "android": {
       "package": "cl.botix.driver",
-      "versionCode": 14,
+      "versionCode": 15,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",

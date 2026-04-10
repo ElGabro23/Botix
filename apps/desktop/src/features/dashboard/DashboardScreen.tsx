@@ -119,6 +119,8 @@ const initialBusinessDraft = {
   businessType: "liquor_store" as BusinessType
 };
 
+const normalizeLookup = (value: string) => value.trim().toLowerCase().replace(/\s+/g, "");
+
 type Props = {
   user: AppUser;
   business: BusinessProfile | null;
@@ -128,13 +130,30 @@ type Props = {
 const buildSearchResults = (catalog: InventoryItem[], query: string) => {
   const term = query.trim().toLowerCase();
   if (!term) return [];
-  return catalog
+  const normalizedTerm = normalizeLookup(term);
+  return [...catalog]
     .filter(
       (item) =>
         item.active &&
         [item.name, item.category, item.sku].some((value) => value.toLowerCase().includes(term))
     )
+    .sort((a, b) => {
+      const aSku = normalizeLookup(a.sku);
+      const bSku = normalizeLookup(b.sku);
+      const aExact = aSku === normalizedTerm ? 1 : 0;
+      const bExact = bSku === normalizedTerm ? 1 : 0;
+      return bExact - aExact || a.name.localeCompare(b.name);
+    })
     .slice(0, 8);
+};
+
+const findBarcodeMatch = (catalog: InventoryItem[], query: string) => {
+  const normalizedTerm = normalizeLookup(query);
+  if (!normalizedTerm) return null;
+  return (
+    catalog.find((item) => item.active && normalizeLookup(item.sku) === normalizedTerm) ??
+    null
+  );
 };
 
 const sumCart = (catalog: InventoryItem[], cart: CartItem[]) =>
@@ -361,10 +380,17 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const handleSearchEnter = (
     event: KeyboardEvent<HTMLInputElement>,
     results: InventoryItem[],
+    catalog: InventoryItem[],
+    rawValue: string,
     onPick: (productId: string) => void
   ) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
+    const barcodeMatch = findBarcodeMatch(catalog, rawValue);
+    if (barcodeMatch) {
+      onPick(barcodeMatch.id);
+      return;
+    }
     if (results[0]) onPick(results[0].id);
   };
 
@@ -455,7 +481,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
 
   const saveInventory = async () => {
     if (!inventoryDraft.name || !inventoryDraft.category || !inventoryDraft.sku) {
-      setNotice("Completa nombre, categoria y SKU del producto.");
+      setNotice("Completa nombre, categoria y codigo del producto.");
       return;
     }
     setSaving("inventory");
@@ -737,11 +763,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
             <div className="inline-field">
               <Search size={15} />
               <input
-                placeholder={`Buscar ${businessConfig.labels.products.toLowerCase()} por nombre o SKU`}
+                placeholder={`Buscar ${businessConfig.labels.products.toLowerCase()} por nombre, SKU o codigo de barras`}
                 value={counterSearch}
                 onChange={(event) => setCounterSearch(event.target.value)}
                 onKeyDown={(event) =>
-                  handleSearchEnter(event, counterResults, (productId) =>
+                  handleSearchEnter(event, counterResults, activeInventory, counterSearch, (productId) =>
                     setCounterCart(addCartItem(counterCart, productId))
                   )
                 }
@@ -837,11 +863,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
             <div className="inline-field">
               <Search size={15} />
               <input
-                placeholder={`Buscar ${businessConfig.labels.products.toLowerCase()} del pedido`}
+                placeholder={`Buscar ${businessConfig.labels.products.toLowerCase()} por nombre, SKU o codigo de barras`}
                 value={orderSearch}
                 onChange={(event) => setOrderSearch(event.target.value)}
                 onKeyDown={(event) =>
-                  handleSearchEnter(event, orderResults, (productId) =>
+                  handleSearchEnter(event, orderResults, activeInventory, orderSearch, (productId) =>
                     setOrderCart(addCartItem(orderCart, productId))
                   )
                 }
@@ -987,7 +1013,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
               <div className="field-grid compact-grid">
                 <input aria-label="Nombre del producto" placeholder="Nombre del producto" value={inventoryDraft.name} onChange={(event) => setInventoryDraft((current) => ({ ...current, name: event.target.value }))} />
                 <input aria-label="Categoria del producto" placeholder="Categoria" value={inventoryDraft.category} onChange={(event) => setInventoryDraft((current) => ({ ...current, category: event.target.value }))} />
-                <input aria-label="SKU del producto" placeholder="SKU o codigo interno" value={inventoryDraft.sku} onChange={(event) => setInventoryDraft((current) => ({ ...current, sku: event.target.value }))} />
+                <input aria-label="Codigo del producto" placeholder="SKU o codigo de barras" value={inventoryDraft.sku} onChange={(event) => setInventoryDraft((current) => ({ ...current, sku: event.target.value }))} />
                 <input aria-label="Precio de venta" placeholder="Valor de venta" type="number" value={inventoryDraft.price} onChange={(event) => setInventoryDraft((current) => ({ ...current, price: event.target.value }))} />
                 <input aria-label="Costo del producto" placeholder="Coste del producto" type="number" value={inventoryDraft.costPrice} onChange={(event) => setInventoryDraft((current) => ({ ...current, costPrice: event.target.value }))} />
                 <input aria-label="Stock inicial" placeholder="Stock" type="number" value={inventoryDraft.stock} onChange={(event) => setInventoryDraft((current) => ({ ...current, stock: event.target.value }))} />
@@ -1012,7 +1038,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
             <div className="inventory-table">
               <div className="inventory-row inventory-row--head">
                 <span>{businessConfig.labels.products}</span>
-                <span>SKU</span>
+                <span>Codigo</span>
                 <span>Precio</span>
                 {isAdmin ? <span>Costo</span> : null}
                 <span>Stock</span>

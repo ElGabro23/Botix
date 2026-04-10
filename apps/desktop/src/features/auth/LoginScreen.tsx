@@ -45,9 +45,9 @@ export const LoginScreen = ({ onSubmit }: Props) => {
     <div className="login-shell">
       <div className="login-card">
         <div className="login-brand">
-          <img src={assetUrl("brand/botix.jpg")} alt="Botix" />
+          <img src={assetUrl("brand/hunix.jpeg")} alt="Hunix" />
           <div>
-            <h1>X Commerce</h1>
+            <h1>Hunix</h1>
             <p>Plataforma multi-rubro para delivery, caja y operacion diaria</p>
           </div>
         </div>

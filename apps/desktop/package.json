@@ -1,6 +1,6 @@
 {
   "name": "@botix/desktop",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
@@ -32,7 +32,7 @@
   },
   "build": {
     "appId": "cl.botix.desktop",
-    "productName": "BOTIX",
+    "productName": "Hunix",
     "electronVersion": "35.2.2",
     "directories": {
       "output": "release",
@@ -58,7 +58,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "BOTIX"
+      "shortcutName": "Hunix"
     }
   }
 }

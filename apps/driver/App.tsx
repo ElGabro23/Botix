@@ -17,6 +17,9 @@ import {
 } from "./src/lib/driverApi";
 import { driverBrandAssets } from "./src/lib/brandAssets";
 
+const platformBrandName = "Hunix";
+const platformBrandImage = require("./assets/hunix.jpeg");
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -29,6 +32,8 @@ Notifications.setNotificationHandler({
 export default function App() {
   const session = useDriverSession();
   const businessConfig = resolveBusinessProfile(session.business);
+  const loginBrandName = session.business ? businessConfig.brandName : platformBrandName;
+  const loginBrandImage = session.business ? driverBrandAssets[businessConfig.logoAsset] : platformBrandImage;
   const { orders, error: ordersError } = useAssignedOrders(session.user?.businessId, session.user?.id);
   const dayEarnings = useDriverDayEarnings(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
@@ -120,7 +125,7 @@ export default function App() {
   if (session.loading) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text>Cargando plataforma...</Text>
+        <Text>Cargando {platformBrandName}...</Text>
       </SafeAreaView>
     );
   }
@@ -151,8 +156,8 @@ export default function App() {
       <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.loginScreen}>
           <View style={styles.loginCard}>
-            <Image source={driverBrandAssets[businessConfig.logoAsset]} style={styles.brandImage} />
-            <Text style={styles.title}>{businessConfig.brandName} Driver</Text>
+            <Image source={loginBrandImage} style={styles.brandImage} />
+            <Text style={styles.title}>{loginBrandName} Driver</Text>
             <Text style={styles.subtitle}>Ingreso rapido para repartidores</Text>
             {session.error ? <Text style={styles.errorText}>{session.error}</Text> : null}
             <TextInput
