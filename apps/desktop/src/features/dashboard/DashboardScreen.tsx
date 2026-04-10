@@ -25,9 +25,10 @@ import type {
   PaymentMethod,
   SubscriptionStatus
 } from "@botix/shared";
-import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBrandAssetPath, getBusinessPreset, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
+import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBusinessPreset, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
 import {
   assignCourier,
+  createBusinessAccount,
   createCourierAccount,
   createCustomerRecord,
   createDeliveryOrder,
@@ -114,8 +115,10 @@ const initialExpenseDraft = {
 };
 
 const initialBusinessDraft = {
-  businessId: "",
   businessName: "",
+  adminEmail: "",
+  adminPassword: "",
+  subscriptionStartedAt: new Date().toISOString().slice(0, 10),
   businessType: "liquor_store" as BusinessType
 };
 
@@ -394,6 +397,16 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     if (results[0]) onPick(results[0].id);
   };
 
+  const appendCounterItem = (productId: string) => {
+    setCounterCart((current) => addCartItem(current, productId));
+    setCounterSearch("");
+  };
+
+  const appendOrderItem = (productId: string) => {
+    setOrderCart((current) => addCartItem(current, productId));
+    setOrderSearch("");
+  };
+
   const saveCounterSale = async () => {
     if (!counterCart.length) {
       setNotice("Agrega productos antes de registrar la venta de meson.");
@@ -577,30 +590,26 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   };
 
   const createBusiness = async () => {
-    if (!businessDraft.businessId || !businessDraft.businessName) {
-      setNotice("Completa ID y nombre del negocio.");
+    if (
+      !businessDraft.businessName ||
+      !businessDraft.adminEmail ||
+      !businessDraft.adminPassword ||
+      !businessDraft.subscriptionStartedAt
+    ) {
+      setNotice("Completa nombre, correo, contrasena y fecha de inicio del negocio.");
       return;
     }
-    const preset = getBusinessPreset(businessDraft.businessType);
     setSaving("business");
     try {
-      await saveBusinessProfile({
-        businessId: businessDraft.businessId.trim(),
+      const { businessId } = await createBusinessAccount({
         businessName: businessDraft.businessName.trim(),
+        adminEmail: businessDraft.adminEmail.trim(),
+        adminPassword: businessDraft.adminPassword,
+        subscriptionStartedAt: new Date(`${businessDraft.subscriptionStartedAt}T00:00:00`).toISOString(),
         businessType: businessDraft.businessType,
-        brandName: preset.brandName,
-        logoAsset: preset.logoAsset,
-        theme: preset.theme,
-        labels: preset.labels,
-        enabledModules: preset.enabledModules,
-        orderStatuses: preset.orderStatuses,
-        subscriptionStatus: "active",
-        accessEnabled: true,
-        plan: "standard",
-        monthlyPrice: 29990
       });
       setBusinessDraft(initialBusinessDraft);
-      setNotice("Negocio creado correctamente.");
+      setNotice(`Negocio creado correctamente con ID ${businessId}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No fue posible crear el negocio.");
     } finally {
@@ -625,6 +634,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
         accessEnabled: entry.accessEnabled,
         plan: entry.plan,
         monthlyPrice: entry.monthlyPrice,
+        subscriptionStartedAt: entry.subscriptionStartedAt,
         billingContactEmail: entry.billingContactEmail,
         billingNote: entry.billingNote
       });
@@ -715,10 +725,10 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     <div className="desktop-shell compact-shell" style={themeVars}>
       <header className="topbar compact-topbar">
         <div className="brand-wrap">
-          <img src={assetUrl(getBrandAssetPath(businessConfig.logoAsset))} alt={businessConfig.brandName} />
+          <img src={assetUrl("brand/hunix.jpeg")} alt="Hunix" />
           <div>
-            <h1>{businessConfig.brandName}</h1>
-            <span>{businessConfig.labels.tagline}</span>
+            <h1>Hunix</h1>
+            <span>{businessConfig.brandName} | {businessConfig.labels.tagline}</span>
           </div>
         </div>
 
@@ -767,13 +777,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                 value={counterSearch}
                 onChange={(event) => setCounterSearch(event.target.value)}
                 onKeyDown={(event) =>
-                  handleSearchEnter(event, counterResults, activeInventory, counterSearch, (productId) =>
-                    setCounterCart(addCartItem(counterCart, productId))
-                  )
+                  handleSearchEnter(event, counterResults, activeInventory, counterSearch, appendCounterItem)
                 }
               />
             </div>
-            {renderProductResults(counterResults, (productId) => setCounterCart(addCartItem(counterCart, productId)))}
+            {renderProductResults(counterResults, appendCounterItem)}
             <div className="field-grid compact-grid">
               <input
                 placeholder="Cliente opcional"
@@ -867,13 +875,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                 value={orderSearch}
                 onChange={(event) => setOrderSearch(event.target.value)}
                 onKeyDown={(event) =>
-                  handleSearchEnter(event, orderResults, activeInventory, orderSearch, (productId) =>
-                    setOrderCart(addCartItem(orderCart, productId))
-                  )
+                  handleSearchEnter(event, orderResults, activeInventory, orderSearch, appendOrderItem)
                 }
               />
             </div>
-            {renderProductResults(orderResults, (productId) => setOrderCart(addCartItem(orderCart, productId)))}
+            {renderProductResults(orderResults, appendOrderItem)}
             <div className="field-grid compact-grid">
               <select value={selectedOrderCourierId} onChange={(event) => setSelectedOrderCourierId(event.target.value)}>
                 <option value="">Asignar repartidor despues</option>
@@ -1214,17 +1220,29 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
             <div className="section-title compact-title">Crear negocio</div>
             <div className="field-grid compact-grid">
               <input
-                placeholder="ID del negocio"
-                value={businessDraft.businessId}
-                onChange={(event) => setBusinessDraft((current) => ({ ...current, businessId: event.target.value.toLowerCase().replace(/\s+/g, "-") }))}
-              />
-              <input
                 placeholder="Nombre comercial"
                 value={businessDraft.businessName}
                 onChange={(event) => setBusinessDraft((current) => ({ ...current, businessName: event.target.value }))}
               />
+              <input
+                placeholder="Correo administrador"
+                type="email"
+                value={businessDraft.adminEmail}
+                onChange={(event) => setBusinessDraft((current) => ({ ...current, adminEmail: event.target.value }))}
+              />
+              <input
+                placeholder="Contrasena inicial"
+                type="password"
+                value={businessDraft.adminPassword}
+                onChange={(event) => setBusinessDraft((current) => ({ ...current, adminPassword: event.target.value }))}
+              />
+              <input
+                aria-label="Fecha de inicio"
+                type="date"
+                value={businessDraft.subscriptionStartedAt}
+                onChange={(event) => setBusinessDraft((current) => ({ ...current, subscriptionStartedAt: event.target.value }))}
+              />
               <select
-                className="field-span"
                 value={businessDraft.businessType}
                 onChange={(event) => setBusinessDraft((current) => ({ ...current, businessType: event.target.value as BusinessType }))}
               >
@@ -1253,6 +1271,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                       Estado: {entry.subscriptionStatus} | Acceso: {entry.accessEnabled ? "habilitado" : "bloqueado"}
                     </span>
                     <span>Plan: {entry.plan ?? "standard"} | Mensualidad: {formatCurrency(entry.monthlyPrice ?? 0)}</span>
+                    <span>Inicio: {entry.subscriptionStartedAt ? formatCompactDateTime(entry.subscriptionStartedAt) : "Sin fecha"}</span>
                     <span>Vence: {entry.currentPeriodEnd ?? "Sin fecha"}</span>
                   </div>
                   <div className="compact-row__meta" style={{ minWidth: 260 }}>

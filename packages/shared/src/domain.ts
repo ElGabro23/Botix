@@ -82,6 +82,7 @@ export interface BusinessProfile {
   accessEnabled: boolean;
   plan?: string;
   monthlyPrice?: number;
+  subscriptionStartedAt?: string;
   currentPeriodEnd?: string;
   graceUntil?: string;
   billingContactEmail?: string;

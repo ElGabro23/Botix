@@ -2,14 +2,14 @@ import { DashboardScreen } from "@/features/dashboard/DashboardScreen";
 import { LoginScreen } from "@/features/auth/LoginScreen";
 import { useAuthSession } from "@/features/auth/useAuthSession";
 import { assetUrl } from "@/lib/assetUrl";
-import { getBrandAssetPath, resolveBusinessProfile } from "@botix/shared";
+import { resolveBusinessProfile } from "@botix/shared";
 
 export const App = () => {
   const session = useAuthSession();
   const businessConfig = resolveBusinessProfile(session.business);
 
   if (session.loading) {
-    return <div className="splash-screen">Cargando {businessConfig.brandName}...</div>;
+    return <div className="splash-screen">Cargando Hunix...</div>;
   }
 
   if (!session.profile) {
@@ -24,9 +24,9 @@ export const App = () => {
       <div className="login-shell">
         <div className="login-card">
           <div className="login-brand">
-            <img src={assetUrl(getBrandAssetPath(businessConfig.logoAsset))} alt={businessConfig.brandName} />
+            <img src={assetUrl("brand/hunix.jpeg")} alt="Hunix" />
             <div>
-              <h1>{businessConfig.brandName}</h1>
+              <h1>Hunix</h1>
               <p>Acceso suspendido</p>
             </div>
           </div>

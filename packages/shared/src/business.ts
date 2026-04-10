@@ -181,6 +181,7 @@ export const resolveBusinessProfile = (business?: Partial<BusinessProfile> | nul
     accessEnabled: business?.accessEnabled ?? true,
     plan: business?.plan ?? "standard",
     monthlyPrice: business?.monthlyPrice ?? 0,
+    subscriptionStartedAt: business?.subscriptionStartedAt,
     currentPeriodEnd: business?.currentPeriodEnd,
     graceUntil: business?.graceUntil,
     billingContactEmail: business?.billingContactEmail,

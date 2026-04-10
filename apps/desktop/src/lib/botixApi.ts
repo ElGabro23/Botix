@@ -156,6 +156,7 @@ export const saveBusinessProfile = async (
         | "accessEnabled"
         | "plan"
         | "monthlyPrice"
+        | "subscriptionStartedAt"
         | "billingContactEmail"
         | "billingNote"
       >
@@ -798,6 +799,78 @@ export const createCourierAccount = async (
     await signOutAuth(secondaryAuth);
     await deleteApp(secondaryApp);
     return uid;
+  } catch (error) {
+    await deleteApp(secondaryApp);
+    throw error;
+  }
+};
+
+export const createBusinessAccount = async (
+  input: {
+    businessName: string;
+    businessType: BusinessProfile["businessType"];
+    adminEmail: string;
+    adminPassword: string;
+    subscriptionStartedAt: string;
+  }
+) => {
+  const businessId = input.businessName
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (!businessId) {
+    throw new Error("No fue posible generar un ID valido para el negocio.");
+  }
+
+  const secondaryApp = initializeApp(firebaseClient.app.options, `business-admin-${crypto.randomUUID()}`);
+  const secondaryAuth = getAuth(secondaryApp);
+  const secondaryDb = getFirestore(secondaryApp);
+  const preset = resolveBusinessProfile({
+    businessId,
+    businessName: input.businessName,
+    businessType: input.businessType
+  });
+
+  try {
+    const existingBusiness = await getDoc(businessRef(businessId));
+    if (existingBusiness.exists()) {
+      throw new Error("Ya existe un negocio con ese nombre o identificador.");
+    }
+
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, input.adminEmail, input.adminPassword);
+    await updateProfile(credential.user, { displayName: input.businessName });
+    const uid = credential.user.uid;
+
+    await runTransaction(firebaseClient.db, async (transaction) => {
+      transaction.set(businessRef(businessId), {
+        ...preset,
+        subscriptionStartedAt: input.subscriptionStartedAt,
+        subscriptionStatus: "active",
+        accessEnabled: true,
+        plan: "standard",
+        monthlyPrice: 29990,
+        billingContactEmail: input.adminEmail,
+        createdAt: nowIso(),
+        updatedAt: nowIso()
+      });
+    });
+
+    await runTransaction(secondaryDb, async (transaction) => {
+      transaction.set(doc(secondaryDb, "users", uid), {
+        active: true,
+        businessId,
+        displayName: input.businessName,
+        email: input.adminEmail,
+        role: "admin"
+      });
+    });
+
+    await signOutAuth(secondaryAuth);
+    await deleteApp(secondaryApp);
+    return { uid, businessId };
   } catch (error) {
     await deleteApp(secondaryApp);
     throw error;
