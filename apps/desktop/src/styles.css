@@ -49,6 +49,14 @@ input {
   gap: 16px;
 }
 
+.login-brand {
+  align-items: flex-start;
+}
+
+.login-brand > div {
+  padding-top: 12px;
+}
+
 .login-brand img,
 .brand-wrap img {
   width: 64px;

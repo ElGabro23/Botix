@@ -7,6 +7,8 @@ const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
 
+app.setName("Hunix");
+
 const createWindow = async () => {
   const window = new BrowserWindow({
     width: 1600,

@@ -34,6 +34,7 @@
   "build": {
     "appId": "cl.botix.desktop",
     "productName": "Hunix",
+    "executableName": "Hunix",
     "electronVersion": "35.2.2",
     "directories": {
       "output": "release",
