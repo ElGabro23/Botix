@@ -206,6 +206,8 @@ export interface CounterSale {
   paymentMethod: PaymentMethod;
   createdBy: string;
   createdAt: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
 }
 
 export interface ExpenseRecord {

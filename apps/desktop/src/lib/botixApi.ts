@@ -78,6 +78,24 @@ const applyInventoryDiscount = (catalog: InventoryItem[], items: OrderItem[]) =>
   return [...inventoryMap.values()].sort((a, b) => a.name.localeCompare(b.name));
 };
 
+const restoreInventoryStock = (catalog: InventoryItem[], items: OrderItem[]) => {
+  const timestamp = nowIso();
+  const inventoryMap = new Map(catalog.map((item) => [item.id, item]));
+
+  for (const saleItem of items) {
+    const inventoryItem = inventoryMap.get(saleItem.id);
+    if (!inventoryItem) continue;
+
+    inventoryMap.set(saleItem.id, {
+      ...inventoryItem,
+      stock: inventoryItem.stock + saleItem.quantity,
+      updatedAt: timestamp
+    });
+  }
+
+  return [...inventoryMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+};
+
 type InventoryCatalogDocument = {
   items: InventoryItem[];
   updatedAt?: string;
@@ -554,6 +572,55 @@ export const registerCounterSale = async (
   });
 };
 
+export const cancelCounterSale = async (user: AppUser, saleId: string) => {
+  await runTransaction(firebaseClient.db, async (transaction) => {
+    const [inventorySnap, ledgerSnap] = await Promise.all([
+      transaction.get(inventoryDocRef(user.businessId)),
+      transaction.get(posLedgerRef(user.businessId))
+    ]);
+
+    if (!ledgerSnap.exists()) throw new Error("No se encontro el libro de ventas.");
+
+    const inventory = inventorySnap.exists()
+      ? (((inventorySnap.data() as InventoryCatalogDocument).items ?? []) as InventoryItem[])
+      : [];
+    const ledger = (ledgerSnap.data() as PointOfSaleLedgerDocument).sales ?? [];
+    const sale = ledger.find((entry) => entry.id === saleId);
+    if (!sale) throw new Error("No se encontro la venta.");
+    if (sale.cancelledAt) throw new Error("La venta ya fue cancelada.");
+
+    const nextInventory = restoreInventoryStock(inventory, sale.items);
+    const timestamp = nowIso();
+    const nextSales = ledger.map((entry) =>
+      entry.id === saleId
+        ? {
+            ...entry,
+            cancelledAt: timestamp,
+            cancelledBy: user.id
+          }
+        : entry
+    );
+
+    transaction.set(
+      posLedgerRef(user.businessId),
+      {
+        sales: nextSales,
+        updatedAt: timestamp
+      },
+      { merge: true }
+    );
+
+    transaction.set(
+      inventoryDocRef(user.businessId),
+      {
+        items: nextInventory,
+        updatedAt: timestamp
+      },
+      { merge: true }
+    );
+  });
+};
+
 export const saveExpenseRecord = async (
   user: AppUser,
   input: Pick<ExpenseRecord, "category" | "description" | "amount">
@@ -665,6 +732,7 @@ export const subscribeDaySummary = (
     }
 
     for (const sale of counterSales) {
+      if (sale.cancelledAt) continue;
       summary.salesTotal += sale.total;
       summary.counterSalesTotal += sale.total;
       summary.profitTotal += sale.items.reduce((sum, item) => sum + ((item.subtotal ?? 0) - (item.costSubtotal ?? 0)), 0);

@@ -30,6 +30,7 @@ import type {
 import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBrandAssetPath, getBusinessPreset, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
 import {
   assignCourier,
+  cancelCounterSale,
   createBusinessAccount,
   createCourierAccount,
   createCustomerRecord,
@@ -465,6 +466,18 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     }
   };
 
+  const cancelSale = async (saleId: string) => {
+    setSaving(`cancel-sale-${saleId}`);
+    try {
+      await cancelCounterSale(user, saleId);
+      setNotice("Venta cancelada y stock restituido correctamente.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible cancelar la venta.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const saveDeliveryOrder = async () => {
     if (!selectedCustomerId) {
       setNotice("Selecciona un cliente o crea uno nuevo para el pedido.");
@@ -858,8 +871,20 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                   <div>
                     <strong>Venta #{sale.saleNumber}</strong>
                     <span>{formatCompactDateTime(sale.createdAt)}</span>
+                    {sale.cancelledAt ? <span>Cancelada</span> : null}
                   </div>
-                  <strong>{formatCurrency(sale.total)}</strong>
+                  <div className="compact-row__meta">
+                    <strong>{formatCurrency(sale.total)}</strong>
+                    {isAdmin && !sale.cancelledAt ? (
+                      <button
+                        className="ghost-button compact-action danger-outline"
+                        onClick={() => void cancelSale(sale.id)}
+                        type="button"
+                      >
+                        {saving === `cancel-sale-${sale.id}` ? "Cancelando..." : "Cancelar"}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
