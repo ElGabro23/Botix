@@ -20,7 +20,7 @@ import {
 import { driverBrandAssets } from "./src/lib/brandAssets";
 
 const platformBrandName = "Hunix";
-const platformBrandImage = require("./assets/hunix.jpeg");
+const platformBrandImage = require("./assets/hunix-login.jpeg");
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -40,14 +40,15 @@ export default function App() {
   const earningsSummary = useDriverEarningsSummary(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
   const seenOrderIds = useRef<string[]>([]);
-  const [email, setEmail] = useState("driver@botix.cl");
-  const [password, setPassword] = useState("Botix123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [pushNotice, setPushNotice] = useState("");
   const [actionError, setActionError] = useState("");
   const [savedCredentialsLoaded, setSavedCredentialsLoaded] = useState(false);
   const [autoLoginTried, setAutoLoginTried] = useState(false);
   const [restoringSession, setRestoringSession] = useState(false);
   const [manualSignOut, setManualSignOut] = useState(false);
+  const [savedCredentials, setSavedCredentials] = useState<{ email: string; password: string } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -56,10 +57,11 @@ export default function App() {
           AsyncStorage.getItem(savedEmailKey),
           AsyncStorage.getItem(savedPasswordKey)
         ]);
-        if (savedEmail) setEmail(savedEmail);
-        if (savedPassword) setPassword(savedPassword);
+        if (savedEmail && savedPassword) {
+          setSavedCredentials({ email: savedEmail, password: savedPassword });
+        }
       } catch {
-        // Keep defaults if local storage is unavailable.
+        // Keep manual login available even if local storage is unavailable.
       } finally {
         setSavedCredentialsLoaded(true);
       }
@@ -67,17 +69,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!session.user) return;
-
-    void Promise.all([
-      AsyncStorage.setItem(savedEmailKey, email),
-      AsyncStorage.setItem(savedPasswordKey, password)
-    ]).catch(() => undefined);
-  }, [session.user, email, password]);
-
-  useEffect(() => {
     if (!savedCredentialsLoaded || session.loading || session.user || autoLoginTried || manualSignOut) return;
-    if (!email.trim() || !password.trim()) {
+    if (!savedCredentials?.email.trim() || !savedCredentials.password.trim()) {
       setAutoLoginTried(true);
       return;
     }
@@ -85,9 +78,9 @@ export default function App() {
     setAutoLoginTried(true);
     setRestoringSession(true);
     void session
-      .signIn(email, password)
+      .signIn(savedCredentials.email, savedCredentials.password)
       .finally(() => setRestoringSession(false));
-  }, [autoLoginTried, email, manualSignOut, password, savedCredentialsLoaded, session.loading, session.user, session]);
+  }, [autoLoginTried, manualSignOut, savedCredentials, savedCredentialsLoaded, session.loading, session.user, session]);
 
   useEffect(() => {
     if (!session.user) {
@@ -148,9 +141,23 @@ export default function App() {
       AsyncStorage.removeItem(savedPasswordKey)
     ]);
     setAutoLoginTried(true);
+    setSavedCredentials(null);
     setEmail("");
     setPassword("");
     await session.signOut();
+  };
+
+  const handleSignIn = async () => {
+    const nextEmail = email.trim();
+    const nextPassword = password;
+    setActionError("");
+    setManualSignOut(false);
+    await session.signIn(nextEmail, nextPassword);
+    setSavedCredentials({ email: nextEmail, password: nextPassword });
+    await Promise.all([
+      AsyncStorage.setItem(savedEmailKey, nextEmail),
+      AsyncStorage.setItem(savedPasswordKey, nextPassword)
+    ]).catch(() => undefined);
   };
 
   const exportDriverReportPdf = async () => {
@@ -211,8 +218,11 @@ export default function App() {
               onChangeText={setEmail}
               placeholder="Correo"
               placeholderTextColor="#8a97b2"
+              autoComplete="off"
               autoCapitalize="none"
               keyboardType="email-address"
+              importantForAutofill="no"
+              textContentType="none"
             />
             <TextInput
               style={styles.input}
@@ -220,15 +230,14 @@ export default function App() {
               onChangeText={setPassword}
               placeholder="Contrasena"
               placeholderTextColor="#8a97b2"
+              autoComplete="off"
+              importantForAutofill="no"
               secureTextEntry
+              textContentType="none"
             />
             <Pressable
               style={[styles.primaryButton, { backgroundColor: businessConfig.theme.primary }]}
-              onPress={() => {
-                setActionError("");
-                setManualSignOut(false);
-                void session.signIn(email, password);
-              }}
+              onPress={() => void handleSignIn()}
             >
               <Text style={styles.primaryButtonText}>Ingresar</Text>
             </Pressable>

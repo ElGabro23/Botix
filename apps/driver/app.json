@@ -31,7 +31,7 @@
     },
     "android": {
       "package": "cl.botix.driver",
-      "versionCode": 18,
+      "versionCode": 19,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",
