@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
 
-app.setName("Hunix");
+app.setName("Hunix Desktop");
 
 const createWindow = async () => {
   const window = new BrowserWindow({
@@ -16,7 +16,7 @@ const createWindow = async () => {
     minWidth: 1280,
     minHeight: 820,
     backgroundColor: "#eef3ff",
-    title: "Hunix",
+    title: "Hunix Desktop",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
