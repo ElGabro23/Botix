@@ -7,8 +7,8 @@ type Props = {
 };
 
 export const LoginScreen = ({ onSubmit }: Props) => {
-  const [email, setEmail] = useState("admin@botix.cl");
-  const [password, setPassword] = useState("Botix123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -54,12 +54,18 @@ export const LoginScreen = ({ onSubmit }: Props) => {
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
             Correo
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+            <input
+              placeholder="Ingresa tu correo"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+            />
           </label>
 
           <label>
             Contrasena
             <input
+              placeholder="Ingresa tu contrasena"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
