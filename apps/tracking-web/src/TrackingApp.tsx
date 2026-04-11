@@ -69,7 +69,7 @@ export const TrackingApp = () => {
           <img src={assetUrl("brand/hunix-icon.png")} alt="Hunix Tracking" />
           <div>
             <strong>Hunix Tracking</strong>
-            <span>{businessConfig.brandName} | {businessConfig.labels.tracking} en tiempo real</span>
+            <span>{businessConfig.labels.tracking} en tiempo real</span>
           </div>
         </div>
 
