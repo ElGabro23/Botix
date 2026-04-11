@@ -195,7 +195,7 @@ export const useAssignedOrders = (businessId?: string, courierId?: string) => {
       (snap) => {
         const nextOrders = snap.docs
           .map((docItem) => ({ id: docItem.id, ...docItem.data() }) as DeliveryOrder)
-          .filter((order) => ["assigned", "en_route", "incident"].includes(order.status))
+          .filter((order) => !["delivered", "cancelled"].includes(order.status))
           .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
         setOrders(nextOrders);
         setError("");

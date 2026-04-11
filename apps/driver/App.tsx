@@ -306,7 +306,11 @@ const OrderCard = ({
   deliveredLabel: string;
   onStart: () => Promise<void>;
   onDelivered: () => Promise<void>;
-}) => (
+}) => {
+  const canStartRoute = ["assigned", "ready"].includes(order.status);
+  const canMarkDelivered = order.status === "en_route";
+
+  return (
   <View style={styles.orderCard}>
     <View style={styles.orderTop}>
       <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
@@ -346,18 +350,21 @@ const OrderCard = ({
         <Text style={[styles.secondaryButtonText, { color: brandSecondary }]}>Llamar cliente</Text>
       </Pressable>
 
-      {order.status !== "en_route" ? (
+      {canStartRoute ? (
         <Pressable style={[styles.primaryButton, { backgroundColor: brandPrimary }]} onPress={() => void onStart()}>
           <Text style={styles.primaryButtonText}>{startLabel}</Text>
         </Pressable>
       ) : null}
 
-      <Pressable style={[styles.successButton, { backgroundColor: brandSecondary }]} onPress={() => void onDelivered()}>
-        <Text style={styles.primaryButtonText}>{deliveredLabel}</Text>
-      </Pressable>
+      {canMarkDelivered ? (
+        <Pressable style={[styles.successButton, { backgroundColor: brandSecondary }]} onPress={() => void onDelivered()}>
+          <Text style={styles.primaryButtonText}>{deliveredLabel}</Text>
+        </Pressable>
+      ) : null}
     </View>
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   centered: {
