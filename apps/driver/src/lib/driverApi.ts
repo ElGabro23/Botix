@@ -35,6 +35,28 @@ const todayStartIso = () => {
   return date.toISOString();
 };
 
+const weekStartIso = () => {
+  const date = new Date();
+  const day = date.getDay();
+  const diff = (day + 6) % 7;
+  date.setDate(date.getDate() - diff);
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+};
+
+const monthStartIso = () => {
+  const date = new Date();
+  date.setDate(1);
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+};
+
+export type DriverEarningsSummary = {
+  day: number;
+  week: number;
+  month: number;
+};
+
 const resolveTrackingContext = async (context: TrackingContext) => {
   if (context.trackingToken) return context;
 
@@ -238,6 +260,51 @@ export const useDriverDayEarnings = (businessId?: string, courierId?: string) =>
   return earnings;
 };
 
+export const useDriverEarningsSummary = (businessId?: string, courierId?: string) => {
+  const [summary, setSummary] = useState<DriverEarningsSummary>({
+    day: 0,
+    week: 0,
+    month: 0
+  });
+
+  useEffect(() => {
+    if (!businessId || !courierId) {
+      setSummary({ day: 0, week: 0, month: 0 });
+      return;
+    }
+
+    return onSnapshot(
+      query(
+        collection(firebaseClient.db, ordersPath(businessId)),
+        where("businessId", "==", businessId),
+        where("assignedCourierId", "==", courierId)
+      ),
+      (snap) => {
+        const dayStart = todayStartIso();
+        const weekStart = weekStartIso();
+        const monthStart = monthStartIso();
+        const deliveredOrders = snap.docs
+          .map((docItem) => ({ id: docItem.id, ...docItem.data() }) as DeliveryOrder)
+          .filter((order) => order.status === "delivered");
+
+        setSummary({
+          day: deliveredOrders
+            .filter((order) => order.updatedAt >= dayStart)
+            .reduce((sum, order) => sum + (order.deliveryFee ?? 0), 0),
+          week: deliveredOrders
+            .filter((order) => order.updatedAt >= weekStart)
+            .reduce((sum, order) => sum + (order.deliveryFee ?? 0), 0),
+          month: deliveredOrders
+            .filter((order) => order.updatedAt >= monthStart)
+            .reduce((sum, order) => sum + (order.deliveryFee ?? 0), 0)
+        });
+      }
+    );
+  }, [businessId, courierId]);
+
+  return summary;
+};
+
 export const updateDriverOrderStatus = async (
   businessId: string,
   orderId: string,
@@ -286,7 +353,7 @@ export const registerDriverPushToken = async (userId: string) => {
   }
 
   await Notifications.setNotificationChannelAsync("orders", {
-    name: "Pedidos BOTIX",
+    name: "Pedidos Hunix",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250]
   });
@@ -343,7 +410,7 @@ export const startLocationTracking = async (
       timeInterval: 7000,
       pausesUpdatesAutomatically: false,
       foregroundService: {
-        notificationTitle: "BOTIX Driver activo",
+        notificationTitle: "Hunix Driver activo",
         notificationBody: "Compartiendo ubicacion del pedido en reparto",
         notificationColor: "#1f93d0"
       }

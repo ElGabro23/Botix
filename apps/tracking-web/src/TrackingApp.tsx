@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import type { BusinessProfile, TrackingSession } from "@botix/shared";
-import { formatCompactDateTime, getBrandAssetPath, getOrderStatusMeta, resolveBusinessProfile } from "@botix/shared";
+import { formatCompactDateTime, getOrderStatusMeta, resolveBusinessProfile } from "@botix/shared";
 import { createFirebaseClient } from "@botix/firebase-core";
 import { assetUrl } from "./lib/assetUrl";
 
@@ -66,10 +66,10 @@ export const TrackingApp = () => {
     <main className="tracking-shell">
       <section className="tracking-card">
         <div className="brand">
-          <img src={assetUrl(getBrandAssetPath(businessConfig.logoAsset))} alt={businessConfig.brandName} />
+          <img src={assetUrl("brand/hunix-icon.png")} alt="Hunix Tracking" />
           <div>
-            <strong>{businessConfig.brandName} Tracking</strong>
-            <span>{businessConfig.labels.tracking} en tiempo real</span>
+            <strong>Hunix Tracking</strong>
+            <span>{businessConfig.brandName} | {businessConfig.labels.tracking} en tiempo real</span>
           </div>
         </div>
 
@@ -110,7 +110,6 @@ export const TrackingApp = () => {
                     style={{ width: "100%", height: 260, border: 0, borderRadius: 18 }}
                     loading="lazy"
                   />
-                  <span>Base lista para integrar mapa visual con Google Maps o Mapbox.</span>
                 </>
               ) : (
                 <span>El repartidor aun no comparte ubicacion.</span>

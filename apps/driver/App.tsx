@@ -3,6 +3,8 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollV
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import type { LocationSubscription } from "expo-location";
 import { formatCurrency, getOrderStatusMeta, resolveBusinessProfile, type DeliveryOrder } from "@botix/shared";
 import {
@@ -10,7 +12,7 @@ import {
   startLocationTracking,
   stopAllDriverTracking,
   stopLocationTracking,
-  useDriverDayEarnings,
+  useDriverEarningsSummary,
   updateDriverOrderStatus,
   useAssignedOrders,
   useDriverSession
@@ -35,7 +37,7 @@ export default function App() {
   const loginBrandName = session.business ? businessConfig.brandName : platformBrandName;
   const loginBrandImage = session.business ? driverBrandAssets[businessConfig.logoAsset] : platformBrandImage;
   const { orders, error: ordersError } = useAssignedOrders(session.user?.businessId, session.user?.id);
-  const dayEarnings = useDriverDayEarnings(session.user?.businessId, session.user?.id);
+  const earningsSummary = useDriverEarningsSummary(session.user?.businessId, session.user?.id);
   const trackingRef = useRef<LocationSubscription | null>(null);
   const seenOrderIds = useRef<string[]>([]);
   const [email, setEmail] = useState("driver@botix.cl");
@@ -151,6 +153,49 @@ export default function App() {
     await session.signOut();
   };
 
+  const exportDriverReportPdf = async () => {
+    if (!session.user) return;
+    try {
+      const html = `
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              body { font-family: Arial, sans-serif; padding: 28px; color: #20314c; }
+              h1 { margin-bottom: 8px; }
+              p { color: #5f6d87; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { text-align: left; padding: 12px; border-bottom: 1px solid #d7dff0; }
+              th { color: #5f6d87; }
+            </style>
+          </head>
+          <body>
+            <h1>${businessConfig.brandName} Driver</h1>
+            <p>Resumen de ganancias de ${session.user.displayName}</p>
+            <table>
+              <tr><th>Periodo</th><th>Monto</th></tr>
+              <tr><td>Dia</td><td>${formatCurrency(earningsSummary.day)}</td></tr>
+              <tr><td>Semana</td><td>${formatCurrency(earningsSummary.week)}</td></tr>
+              <tr><td>Mes</td><td>${formatCurrency(earningsSummary.month)}</td></tr>
+            </table>
+          </body>
+        </html>
+      `;
+      const result = await Print.printToFileAsync({ html });
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        setActionError("El PDF fue generado, pero compartir no esta disponible en este equipo.");
+        return;
+      }
+      await Sharing.shareAsync(result.uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Resumen del repartidor"
+      });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "No fue posible generar el PDF.");
+    }
+  };
+
   if (!session.user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -230,7 +275,25 @@ export default function App() {
         </View>
         <View style={styles.earningsCard}>
           <Text style={styles.earningsLabel}>Ganancia del dia</Text>
-          <Text style={styles.earningsValue}>{formatCurrency(dayEarnings)}</Text>
+          <Text style={styles.earningsValue}>{formatCurrency(earningsSummary.day)}</Text>
+        </View>
+        <View style={styles.reportCard}>
+          <Text style={styles.reportTitle}>Reportes</Text>
+          <View style={styles.reportRow}>
+            <Text style={styles.earningsLabel}>Dia</Text>
+            <Text style={styles.reportValue}>{formatCurrency(earningsSummary.day)}</Text>
+          </View>
+          <View style={styles.reportRow}>
+            <Text style={styles.earningsLabel}>Semana</Text>
+            <Text style={styles.reportValue}>{formatCurrency(earningsSummary.week)}</Text>
+          </View>
+          <View style={styles.reportRow}>
+            <Text style={styles.earningsLabel}>Mes</Text>
+            <Text style={styles.reportValue}>{formatCurrency(earningsSummary.month)}</Text>
+          </View>
+          <Pressable style={[styles.primaryButton, { backgroundColor: businessConfig.theme.primary }]} onPress={() => void exportDriverReportPdf()}>
+            <Text style={styles.primaryButtonText}>Descargar PDF</Text>
+          </Pressable>
         </View>
         {pushNotice ? <Text style={styles.infoText}>{pushNotice}</Text> : null}
         {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
@@ -462,6 +525,31 @@ const styles = StyleSheet.create({
   },
   earningsValue: {
     fontSize: 24,
+    fontWeight: "800",
+    color: "#20314c"
+  },
+  reportCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 18,
+    gap: 12,
+    shadowColor: "#7891c4",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 2
+  },
+  reportTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#20314c"
+  },
+  reportRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  reportValue: {
+    fontSize: 16,
     fontWeight: "800",
     color: "#20314c"
   },

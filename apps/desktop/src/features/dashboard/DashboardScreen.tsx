@@ -3,11 +3,13 @@ import {
   Bell,
   Bike,
   Boxes,
+  Pencil,
   FileDown,
   FileText,
   LayoutGrid,
   MapPinned,
   PackageCheck,
+  RotateCcw,
   Search,
   Users
 } from "lucide-react";
@@ -206,6 +208,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const [orderPaymentMethod, setOrderPaymentMethod] = useState<PaymentMethod>("cash");
   const [orderNotes, setOrderNotes] = useState("");
   const [inventoryDraft, setInventoryDraft] = useState(initialInventoryDraft);
+  const [editingInventoryId, setEditingInventoryId] = useState<string | null>(null);
   const [customerDraft, setCustomerDraft] = useState(initialCustomerDraft);
   const [orderCustomerDraft, setOrderCustomerDraft] = useState(initialCustomerDraft);
   const [courierDraft, setCourierDraft] = useState(initialCourierDraft);
@@ -332,6 +335,9 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     [activeInventory, orderCart, orderSubtotal]
   );
   const isNewOrderCustomer = selectedCustomerId === newCustomerOption;
+  const inventoryGridStyle = isAdmin
+    ? ({ gridTemplateColumns: "1.4fr 1fr 1fr 1fr 80px 132px" } as CSSProperties)
+    : ({ gridTemplateColumns: "1.5fr 1fr 1fr 80px" } as CSSProperties);
 
   const addCartItem = (cart: CartItem[], inventoryId: string) => {
     const current = cart.find((item) => item.inventoryId === inventoryId);
@@ -411,6 +417,23 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const appendOrderItem = (productId: string) => {
     setOrderCart((current) => addCartItem(current, productId));
     setOrderSearch("");
+  };
+
+  const resetInventoryEditor = () => {
+    setInventoryDraft(initialInventoryDraft);
+    setEditingInventoryId(null);
+  };
+
+  const beginInventoryEdit = (item: InventoryItem) => {
+    setEditingInventoryId(item.id);
+    setInventoryDraft({
+      name: item.name,
+      category: item.category,
+      sku: item.sku,
+      price: String(item.price),
+      costPrice: String(item.costPrice),
+      stock: String(item.stock)
+    });
   };
 
   const saveCounterSale = async () => {
@@ -505,18 +528,21 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     }
     setSaving("inventory");
     try {
+      const currentItem = editingInventoryId
+        ? inventoryItems.find((item) => item.id === editingInventoryId)
+        : null;
       await saveInventoryItem(user.businessId, {
-        id: crypto.randomUUID(),
+        id: editingInventoryId ?? crypto.randomUUID(),
         name: inventoryDraft.name,
         category: inventoryDraft.category,
         sku: inventoryDraft.sku,
         price: Number(inventoryDraft.price || 0),
         costPrice: Number(inventoryDraft.costPrice || 0),
         stock: Number(inventoryDraft.stock || 0),
-        active: true
+        active: currentItem?.active ?? true
       });
-      setInventoryDraft(initialInventoryDraft);
-      setNotice("Producto guardado en inventario.");
+      resetInventoryEditor();
+      setNotice(editingInventoryId ? "Producto actualizado correctamente." : "Producto guardado en inventario.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No fue posible guardar el producto.");
     } finally {
@@ -1032,8 +1058,14 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
               </div>
               <div className="mini-actions">
                 <button className="action-button action-button--primary compact-action" onClick={() => void saveInventory()}>
-                  {saving === "inventory" ? "Guardando..." : "Guardar producto"}
+                  {saving === "inventory" ? "Guardando..." : editingInventoryId ? "Actualizar producto" : "Guardar producto"}
                 </button>
+                {editingInventoryId ? (
+                  <button className="action-button action-button--light compact-action" onClick={resetInventoryEditor}>
+                    <RotateCcw size={16} />
+                    Cancelar edicion
+                  </button>
+                ) : null}
                 <button className="action-button action-button--light compact-action" onClick={downloadInventoryTemplate}>
                   Descargar plantilla Excel
                 </button>
@@ -1048,20 +1080,27 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
           <article className="panel-card compact-card">
             <div className="section-title compact-title">{isCashier ? `${businessConfig.labels.inventory} disponible` : businessConfig.labels.products}</div>
             <div className="inventory-table">
-              <div className="inventory-row inventory-row--head">
+              <div className="inventory-row inventory-row--head" style={inventoryGridStyle}>
                 <span>{businessConfig.labels.products}</span>
                 <span>Codigo</span>
                 <span>Precio</span>
                 {isAdmin ? <span>Costo</span> : null}
                 <span>Stock</span>
+                {isAdmin ? <span>Acciones</span> : null}
               </div>
               {activeInventory.map((item) => (
-                <div className="inventory-row" key={item.id}>
+                <div className="inventory-row" key={item.id} style={inventoryGridStyle}>
                   <span>{item.name}</span>
                   <span>{item.sku}</span>
                   <span>{formatCurrency(item.price)}</span>
                   {isAdmin ? <span>{formatCurrency(item.costPrice)}</span> : null}
                   <span>{item.stock}</span>
+                  {isAdmin ? (
+                    <button className="ghost-button compact-action" onClick={() => beginInventoryEdit(item)} type="button">
+                      <Pencil size={15} />
+                      Editar
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
