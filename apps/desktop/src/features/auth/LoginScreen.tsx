@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { FirebaseError } from "firebase/app";
 import { assetUrl } from "@/lib/assetUrl";
 
@@ -11,6 +11,16 @@ export const LoginScreen = ({ onSubmit }: Props) => {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
+  const autofillNonce = useRef(`hunix-${Math.random().toString(36).slice(2)}`);
+
+  useEffect(() => {
+    setEmail("");
+    setPassword("");
+    if (emailRef.current) emailRef.current.value = "";
+    if (passwordRef.current) passwordRef.current.value = "";
+  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -51,11 +61,14 @@ export const LoginScreen = ({ onSubmit }: Props) => {
           </div>
         </div>
 
-        <form className="login-form" onSubmit={handleSubmit}>
+        <form autoComplete="off" className="login-form" onSubmit={handleSubmit}>
           <label>
             Correo
             <input
+              autoComplete="off"
+              name={`${autofillNonce.current}-email`}
               placeholder="Ingresa tu correo"
+              ref={emailRef}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
@@ -65,7 +78,10 @@ export const LoginScreen = ({ onSubmit }: Props) => {
           <label>
             Contrasena
             <input
+              autoComplete="new-password"
+              name={`${autofillNonce.current}-password`}
               placeholder="Ingresa tu contrasena"
+              ref={passwordRef}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
