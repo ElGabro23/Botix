@@ -22,7 +22,7 @@ export type BusinessPreset = {
 const presets: Record<BusinessType, BusinessPreset> = {
   liquor_store: {
     businessType: "liquor_store",
-    brandName: "BOTIX",
+    brandName: "Hunix",
     logoAsset: "botix",
     theme: {
       primary: "#4d8dff",
@@ -31,7 +31,7 @@ const presets: Record<BusinessType, BusinessPreset> = {
       surfaceTint: "#eff4ff"
     },
     labels: {
-      appName: "BOTIX",
+      appName: "Hunix",
       tagline: "Sistema para botillerias",
       counter: "Caja Meson",
       orders: "Pedidos Delivery",
@@ -58,7 +58,7 @@ const presets: Record<BusinessType, BusinessPreset> = {
   },
   sushi: {
     businessType: "sushi",
-    brandName: "SUSHIX",
+    brandName: "Hunix",
     logoAsset: "sushix",
     theme: {
       primary: "#d14e48",
@@ -67,7 +67,7 @@ const presets: Record<BusinessType, BusinessPreset> = {
       surfaceTint: "#fff3f0"
     },
     labels: {
-      appName: "SUSHIX",
+      appName: "Hunix",
       tagline: "Plataforma para sushi delivery",
       counter: "Caja",
       orders: "Pedidos",
@@ -94,7 +94,7 @@ const presets: Record<BusinessType, BusinessPreset> = {
   },
   burger: {
     businessType: "burger",
-    brandName: "BURGERIX",
+    brandName: "Hunix",
     logoAsset: "burgerix",
     theme: {
       primary: "#d78133",
@@ -103,7 +103,7 @@ const presets: Record<BusinessType, BusinessPreset> = {
       surfaceTint: "#fff7ec"
     },
     labels: {
-      appName: "BURGERIX",
+      appName: "Hunix",
       tagline: "Plataforma para hamburgueserias",
       counter: "Caja",
       orders: "Pedidos",
@@ -130,7 +130,7 @@ const presets: Record<BusinessType, BusinessPreset> = {
   },
   pizza: {
     businessType: "pizza",
-    brandName: "PIZZIX",
+    brandName: "Hunix",
     logoAsset: "pizzix",
     theme: {
       primary: "#d6483d",
@@ -139,7 +139,7 @@ const presets: Record<BusinessType, BusinessPreset> = {
       surfaceTint: "#fff4ef"
     },
     labels: {
-      appName: "PIZZIX",
+      appName: "Hunix",
       tagline: "Plataforma para pizzerias",
       counter: "Caja",
       orders: "Pedidos",
@@ -188,7 +188,7 @@ export const resolveBusinessProfile = (business?: Partial<BusinessProfile> | nul
     billingNote: business?.billingNote,
     supportPhone: business?.supportPhone,
     businessType: business?.businessType ?? preset.businessType,
-    brandName: business?.brandName ?? preset.brandName,
+    brandName: "Hunix",
     logoAsset: business?.logoAsset ?? preset.logoAsset,
     logoUrl: business?.logoUrl,
     theme: {
@@ -197,7 +197,8 @@ export const resolveBusinessProfile = (business?: Partial<BusinessProfile> | nul
     },
     labels: {
       ...preset.labels,
-      ...(business?.labels ?? {})
+      ...(business?.labels ?? {}),
+      appName: "Hunix"
     },
     enabledModules: business?.enabledModules?.length ? business.enabledModules : preset.enabledModules,
     orderStatuses: business?.orderStatuses?.length ? business.orderStatuses : preset.orderStatuses
@@ -210,3 +211,11 @@ export const getOrderStatusMeta = (
 ) => statuses.find((item) => item.key === status) ?? presets.liquor_store.orderStatuses.find((item) => item.key === status)!;
 
 export const getAllBusinessPresets = () => Object.values(presets);
+
+export const getBusinessTypeLabel = (businessType: BusinessType) =>
+  ({
+    liquor_store: "Botilleria",
+    sushi: "Sushi",
+    burger: "Hamburgueseria",
+    pizza: "Pizzeria"
+  })[businessType];

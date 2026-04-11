@@ -34,7 +34,7 @@ Notifications.setNotificationHandler({
 export default function App() {
   const session = useDriverSession();
   const businessConfig = resolveBusinessProfile(session.business);
-  const loginBrandName = session.business ? businessConfig.brandName : platformBrandName;
+  const loginBrandName = platformBrandName;
   const loginBrandImage = session.business ? driverBrandAssets[businessConfig.logoAsset] : platformBrandImage;
   const { orders, error: ordersError } = useAssignedOrders(session.user?.businessId, session.user?.id);
   const earningsSummary = useDriverEarningsSummary(session.user?.businessId, session.user?.id);
@@ -177,7 +177,7 @@ export default function App() {
             </style>
           </head>
           <body>
-            <h1>${businessConfig.brandName} Driver</h1>
+            <h1>${platformBrandName} Driver</h1>
             <p>Resumen de ganancias de ${session.user.displayName}</p>
             <table>
               <tr><th>Periodo</th><th>Monto</th></tr>
@@ -253,7 +253,7 @@ export default function App() {
         <View style={styles.loginScreen}>
           <View style={styles.loginCard}>
             <Image source={driverBrandAssets[businessConfig.logoAsset]} style={styles.brandImage} />
-            <Text style={styles.title}>{businessConfig.brandName} Driver</Text>
+            <Text style={styles.title}>{platformBrandName} Driver</Text>
             <Text style={styles.subtitle}>Acceso suspendido</Text>
             <Text style={styles.errorText}>
               El negocio esta {session.business.subscriptionStatus} y el acceso fue bloqueado hasta regularizar el pago.

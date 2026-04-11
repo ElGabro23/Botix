@@ -27,7 +27,7 @@ import type {
   PaymentMethod,
   SubscriptionStatus
 } from "@botix/shared";
-import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBrandAssetPath, getBusinessPreset, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
+import { formatCompactDateTime, formatCurrency, getAllBusinessPresets, getBrandAssetPath, getBusinessPreset, getBusinessTypeLabel, getOrderStatusMeta, resolveBusinessProfile, type BusinessType } from "@botix/shared";
 import {
   assignCourier,
   cancelCounterSale,
@@ -219,10 +219,10 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
   const isAdmin = user.role === "admin";
   const isCashier = user.role === "cashier";
   const isSuperAdmin = user.role === "superadmin";
-  const topbarName = isSuperAdmin ? platformName : businessConfig.brandName;
+  const topbarName = platformName;
   const topbarTagline = isSuperAdmin
     ? "Plataforma multi-rubro para administracion comercial"
-    : `${businessConfig.brandName} | ${businessConfig.labels.tagline}`;
+    : `${businessConfig.businessName} | ${businessConfig.labels.tagline}`;
   const topbarLogo = isSuperAdmin ? "brand/hunix-icon.png" : assetUrl(getBrandAssetPath(businessConfig.logoAsset));
 
   useEffect(() => subscribeOrders(user.businessId, setOrders), [user.businessId]);
@@ -669,7 +669,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
         businessId: entry.businessId,
         businessName: entry.businessName,
         businessType,
-        brandName: preset.brandName,
+        brandName: "Hunix",
         logoAsset: preset.logoAsset,
         theme: preset.theme,
         labels: preset.labels,
@@ -699,7 +699,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `plantilla-${businessConfig.brandName.toLowerCase()}.csv`;
+    anchor.download = `plantilla-hunix-${businessConfig.businessType}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -744,11 +744,11 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
     const printable = window.open("", "_blank", "width=900,height=800");
     if (!printable) return;
     printable.document.write(`
-      <html><head><title>Reporte ${businessConfig.brandName}</title><style>
+      <html><head><title>Reporte Hunix</title><style>
       body{font-family:Segoe UI,sans-serif;padding:32px;color:#20314c}
       table{width:100%;border-collapse:collapse}td,th{padding:12px;border-bottom:1px solid #dfe5f5;text-align:left}
       </style></head><body>
-      <h1>Reporte mensual ${businessConfig.brandName}</h1>
+      <h1>Reporte mensual Hunix</h1>
       <p>Negocio: ${user.businessId}</p>
       <p>Fecha: ${new Date().toLocaleString("es-CL")}</p>
       <table><tbody>
@@ -1209,7 +1209,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
       {activeSection === "reports" && isAdmin ? (
         <main className="module-layout">
           <article className="panel-card compact-card">
-            <div className="section-title compact-title">Reporte mensual {businessConfig.brandName}</div>
+            <div className="section-title compact-title">Reporte mensual Hunix</div>
             <div className="report-grid">
               <div className="metric-tile compact-tile"><span>Ventas</span><strong>{formatCurrency(summary.salesTotal)}</strong></div>
               <div className="metric-tile compact-tile"><span>Utilidad</span><strong>{formatCurrency(summary.profitTotal)}</strong></div>
@@ -1318,7 +1318,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
               >
                 {businessPresets.map((preset) => (
                   <option key={preset.businessType} value={preset.businessType}>
-                    {preset.brandName} | {preset.businessType}
+                    Hunix | {getBusinessTypeLabel(preset.businessType)}
                   </option>
                 ))}
               </select>
@@ -1334,7 +1334,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
               {businesses.map((entry) => (
                 <div className="compact-row" key={entry.id} style={{ alignItems: "start" }}>
                   <div style={{ width: "100%" }}>
-                    <strong>{entry.brandName ?? entry.businessName}</strong>
+                    <strong>{entry.businessName}</strong>
                     <span>{entry.businessId}</span>
                     <span>Rubro: {entry.businessType ?? "liquor_store"}</span>
                     <span>
@@ -1351,7 +1351,7 @@ export const DashboardScreen = ({ user, business, onSignOut }: Props) => {
                     >
                       {businessPresets.map((preset) => (
                         <option key={preset.businessType} value={preset.businessType}>
-                          {preset.brandName}
+                          {getBusinessTypeLabel(preset.businessType)}
                         </option>
                       ))}
                     </select>
